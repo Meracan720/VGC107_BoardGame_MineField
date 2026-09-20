@@ -11,7 +11,7 @@ const GridVisibility = (() => {
   function setup() {
     const input = el("visibilityMode");
     if (!Object.hasOwn(durations, input.value)) input.value = "default";
-    el("visibilityHint").textContent = hints[input.value] + " Numbered scan clues use the same lifetime. Planting changes neither visibility nor stored clue numbers. Walls and ridges stay visible.";
+    el("visibilityHint").textContent = hints[input.value] + " Numbered clues use the same lifetime. Initial bombs found by 3-Grid Scan stay visible until removed. Planting changes neither visibility nor stored clue numbers. Walls and ridges stay visible.";
     return {visibilityMode: input.value};
   }
 

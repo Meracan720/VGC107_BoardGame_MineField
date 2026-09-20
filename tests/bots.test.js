@@ -245,7 +245,7 @@ test("Agents can program a wall break followed by moving through that wall", asy
   const {run} = game({humanCount: "1"});
   run(`
     MinefieldAgents.register("wall-walker", {label: "Wall Walker", chooseAction(view) {
-      if (!view.self.program.length) return {action: "BOMB", dir: "LEFT"};
+      if (!view.self.program.length) return {action: "BREAK_WALL", dir: "LEFT"};
       assert.equal(view.board[98].type, "wall");
       assert.ok(view.legalActions.some(a => a.action === "MOVE" && a.dir === "LEFT"));
       return {action: "MOVE", dir: "LEFT"};
@@ -259,7 +259,7 @@ test("Agents can program a wall break followed by moving through that wall", asy
   run(`
     assert.equal(state.agentFailures.size, 0);
     assert.equal(state.phase, "execution");
-    assert.deepEqual(state.players[1].program.map(a => a.action), ["BOMB", "MOVE"]);
+    assert.deepEqual(state.players[1].program.map(a => a.action), ["BREAK_WALL", "MOVE"]);
     assert.equal(tileAt(8, 9).type, "wall");
     resolveAll();
     assert.equal(tileAt(8, 9).type, "safe");

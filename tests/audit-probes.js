@@ -9,7 +9,7 @@ async function hiddenCrater() {
   run(`
     const p = state.players[0]; p.x = 4; p.y = 4;
     tileAt(5,4).type = "wall";
-    executeAction(p, {action: "BOMB", dir: "RIGHT"});
+    executeAction(p, {action: "BREAK_WALL", dir: "RIGHT"});
     finishRound();
     assert.equal(tileAt(5,4).revealed, false);
     MinefieldAgents.register("audit-capture", {label: "Capture", chooseAction(view) {
@@ -58,7 +58,7 @@ async function trappedBeginner() {
   `);
   await settle();
   run(`
-    assert.equal(state.players[1].program[0].action, "BOMB");
+    assert.equal(state.players[1].program[0].action, "BREAK_WALL");
     assert.equal(state.agentFailures.size, 0);
   `);
   console.log("RESOLVED: boxed-in New Player bot now programs a wall break before other actions.");

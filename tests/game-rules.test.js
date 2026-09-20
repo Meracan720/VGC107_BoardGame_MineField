@@ -2,6 +2,61 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {game} = require("./helpers");
 
+test("Separate planting, wall breaking and scan costs charge and refund the right points", () => {
+  const {run,button}=game();
+  run(`
+    Math.random=()=>0.99;completeDicePhase();const p=currentPlanner();p.x=4;p.y=4;
+    for(const [action,cost] of [["BOMB",1],["BREAK_WALL",2],["TRI_SCAN",2],["AREA_SCAN",3]]){
+      tileAt(5,4).type=action==="BREAK_WALL"?"wall":"safe";
+      chooseAction(action);selectBoardTile(tileAt(5,4));assert.equal(canAddSelection(),true);
+      confirmProgram();assert.equal(p.pointsRemaining,6-cost);
+      assert.equal(p.program[0].action,action);undoLastAction();assert.equal(p.pointsRemaining,6);
+    }
+    p.pointsRemaining=1;render();
+  `);
+  assert.equal(button("BOMB").disabled,false);
+  for(const action of ["BREAK_WALL","TRI_SCAN","AREA_SCAN"]) assert.equal(button(action).disabled,true);
+});
+
+test("Plant Bomb cannot break terrain and Break Wall cannot plant on empty grids", () => {
+  const {run}=game();
+  run(`
+    completeDicePhase();const p=currentPlanner();p.pointsRemaining=6;
+    tileAt(1,0).type="wall";
+    chooseAction("BOMB");selectBoardTile(tileAt(1,0));assert.equal(canAddSelection(),false);
+    executeAction(p,{action:"BOMB",dir:"RIGHT"});assert.equal(tileAt(1,0).type,"wall");
+    chooseAction("BREAK_WALL");selectBoardTile(tileAt(0,1));assert.equal(canAddSelection(),false);
+    executeAction(p,{action:"BREAK_WALL",dir:"DOWN"});assert.equal(tileAt(0,1).type,"safe");
+    executeAction(p,{action:"BREAK_WALL",dir:"RIGHT"});assert.equal(tileAt(1,0).type,"safe");
+    assert.equal(tileAt(1,0).exploded,true);
+    executeAction(p,{action:"BOMB",dir:"DOWN"});assert.equal(tileAt(0,1).type,"mine");
+    assert.equal(tileAt(0,1).revealed,false);
+  `);
+});
+
+test("3-Grid Scan reveals only bombs, removes numbers, and keeps initial discoveries across rounds", () => {
+  const {run,elements}=game({visibilityMode:"hard"});
+  run(`
+    const p=state.players[0];p.x=4;p.y=4;
+    tileAt(5,3).type="mine";tileAt(5,3).initialMine=true;
+    tileAt(5,4).type="mine";
+    const region=threeGridScanRegion(p,"RIGHT");GameRules.scan(p,region);
+    executeAction(p,{action:"TRI_SCAN",dir:"RIGHT"});render();
+    assert.equal(tileAt(5,3).revealed,true);assert.equal(tileAt(5,4).revealed,true);
+    assert.equal(tileAt(5,5).revealed,false);
+    region.forEach(t=>assert.equal(t.clueCount,null));
+    assert.match(state.log,/2 bombs found/);
+  `);
+  assert.ok(elements.get("board").children[35].classList.contains("found-mine"));
+  assert.equal(elements.get("board").children[45].textContent,"◆");
+  run(`
+    finishRound();assert.equal(tileAt(5,3).revealed,true);assert.equal(tileAt(5,4).revealed,false);
+    executeAction(state.players[0],{action:"TRI_SCAN",dir:"LEFT"});
+    assert.match(state.log,/0 bombs found/);
+    threeGridScanRegion(state.players[0],"LEFT").forEach(t=>{assert.equal(t.revealed,false);assert.equal(t.clueCount,null);});
+  `);
+});
+
 test("Terrain/edge collision deals 1 HP and can eliminate; another player blocks without damage", () => {
   const {run} = game();
   run(`

@@ -49,11 +49,11 @@ const MinefieldAgents = (() => {
         const tile = at(x + dir.dx, y + dir.dy);
         if (!blocked(tile)) tile.type = "safe";
       } else if (item.action === "DODGE") defended = true;
-      else if (item.action === "BOMB") {
+      else if (item.action === "BOMB" || item.action === "BREAK_WALL") {
         const tile = at(x + dir.dx, y + dir.dy);
-        if (tile && !occupied(tile.x, tile.y)) {
-          tile.type = tile.type === "wall" ? "safe" : "mine";
-          planted = true;
+        if (tile && !tile.exploded && !occupied(tile.x, tile.y)) {
+          if (item.action === "BREAK_WALL" && tile.type === "wall") { tile.type = "safe"; tile.exploded = true; }
+          else if (item.action === "BOMB" && !blocked(tile)) { tile.type = "mine"; planted = true; }
         }
       } else if (item.action === "ATTACK") {
         const target = attackTarget({x, y}, dir, at, opponents);
@@ -139,14 +139,15 @@ const MinefieldAgents = (() => {
         if (occupied(target.x, target.y) || target.type === "mine") return -50;
         return threatened && !model.defended ? (expert ? 18 : 10) - risk(target) * 2 : -10;
       }
+      if (choice.action === "BREAK_WALL") return !Number.isFinite(distance(position)) ? 20 : -3;
       if (choice.action === "BOMB") {
         if (occupied(target.x, target.y)) return -30;
-        if (target.type === "wall") return !Number.isFinite(distance(position)) ? 20 : -3;
         if (model.planted || target.type === "mine") return -15;
         return distanceToEnemy(target) <= 2 ? (expert ? 11 : 7) : -8;
       }
       if (choice.action.includes("SCAN")) {
-        const fresh = choice.region.filter(t => at(t.x, t.y).clueRound !== view.round).length;
+        const fresh = choice.region.filter(t => choice.action === "TRI_SCAN"
+          ? at(t.x, t.y).type === "unknown" : at(t.x, t.y).clueRound !== view.round).length;
         return scanned ? -10 : fresh / choice.cost - 2;
       }
       return -12;
@@ -155,7 +156,7 @@ const MinefieldAgents = (() => {
     let candidates = view.legalActions;
     if (level === "new-player") {
       if (!candidates.some(a => a.action === "MOVE")) {
-        const escape = candidates.find(a => a.action === "BOMB" && at(a.target.x, a.target.y).type === "wall");
+        const escape = candidates.find(a => a.action === "BREAK_WALL");
         if (escape) return escape;
       }
       // Beginners wander, occasionally miss opportunities, and take more risks.

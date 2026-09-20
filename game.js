@@ -929,7 +929,7 @@ function executeAction(p, item) {
     const tx = p.x + dir.dx;
     const ty = p.y + dir.dy;
     if (!inBounds(tx, ty)) {
-      state.log = `${p.name} cannot place a bomb outside the board.`;
+      state.log = `${p.name}'s ${ACTIONS[action].label.toLowerCase()} target is outside the board.`;
       return;
     }
     const t = tileAt(tx, ty);

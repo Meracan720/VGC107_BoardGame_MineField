@@ -360,7 +360,7 @@ test("Resolve Remaining updates bomb stats and wall demolition does not count as
   const {run, elements} = game({emptyBoard: true});
   run(`
     tileAt(1, 0).type = "mine"; tileAt(0, 1).type = "wall";
-    state.players[0].program = [{action: "SCAN"}, {action: "BOMB", dir: "DOWN"}];
+    state.players[0].program = [{action: "SCAN"}, {action: "BREAK_WALL", dir: "DOWN"}];
     beginExecution(); resolveAll();
   `);
   assert.equal(elements.get("bombStats").textContent, "1 bomb / 0 found");
@@ -373,8 +373,7 @@ test("Resolve Remaining updates bomb stats and wall demolition does not count as
 
 for (const scan of [
   {action: "SCAN", cost: 1, grids: 1, mine: {x: 5, y: 5}},
-  {action: "TRI_SCAN", cost: 1, grids: 3, mine: {x: 5, y: 5}},
-  {action: "AREA_SCAN", cost: 2, grids: 9, mine: {x: 6, y: 4}},
+  {action: "AREA_SCAN", cost: 3, grids: 9, mine: {x: 6, y: 4}},
 ]) {
   test(`${scan.action} previews and records clue counts without revealing bombs or destroying walls`, () => {
     const {run, elements, button} = game();
@@ -411,23 +410,23 @@ for (const scan of [
 
 test("Breaking a wall costs two points and opens a safe grid only when executed", () => {
   const {run, elements, button} = game();
-  assert.equal(button("BOMB").disabled, true);
+  assert.equal(button("BREAK_WALL").disabled, true);
   run('tileAt(1, 0).type = "wall"; Math.random = () => 0.4; completeDicePhase();');
-  button("BOMB").click();
+  button("BREAK_WALL").click();
   run("selectBoardTile(tileAt(1, 0));");
   assert.equal(elements.get("confirmProgramBtn").disabled, false);
-  assert.equal(elements.get("confirmProgramBtn").textContent, "Add Bomb / Break Wall · 2 points");
+  assert.equal(elements.get("confirmProgramBtn").textContent, "Add Break Wall · 2 points");
   elements.get("confirmProgramBtn").click();
   run(`
     assert.equal(currentPlanner().pointsRemaining, 1);
     assert.equal(tileAt(1, 0).type, "wall");
     assert.equal(canEnter(1, 0, 1), false);
   `);
-  assert.equal(button("BOMB").disabled, true);
+  assert.equal(button("BREAK_WALL").disabled, true);
   assert.equal(elements.get("allocationTrack").children.filter(c => c.classList.contains("point-bomb")).length, 2);
   elements.get("undoActionBtn").click();
   run("assert.equal(currentPlanner().pointsRemaining, 3); assert.equal(tileAt(1, 0).type, 'wall');");
-  button("BOMB").click();
+  button("BREAK_WALL").click();
   run("selectBoardTile(tileAt(1, 0));");
   elements.get("confirmProgramBtn").click();
   run(`
@@ -450,7 +449,7 @@ test("A queued wall break opens a selectable path without changing live terrain 
     tileAt(1, 0).type = "wall";
     Math.random = () => 0.4; completeDicePhase();
     assert.equal(movementPaths(currentPlanner()).has("1,0"), false);
-    chooseAction("BOMB"); selectBoardTile(tileAt(1, 0)); confirmProgram();
+    chooseAction("BREAK_WALL"); selectBoardTile(tileAt(1, 0)); confirmProgram();
     assert.deepEqual(movementPaths(currentPlanner()).get("1,0"), ["RIGHT"]);
     assert.equal(tileAt(1, 0).type, "wall");
     assert.equal(canEnter(1, 0, 1), false);
@@ -458,7 +457,7 @@ test("A queued wall break opens a selectable path without changing live terrain 
   assert.ok(elements.get("board").children[1].classList.contains("move-reachable"));
   run(`
     chooseAction("MOVE"); selectBoardTile(tileAt(1, 0)); confirmProgram();
-    assert.deepEqual(state.players[0].program.map(a => a.action), ["BOMB", "MOVE"]);
+    assert.deepEqual(state.players[0].program.map(a => a.action), ["BREAK_WALL", "MOVE"]);
     assert.equal(state.players[0].pointsRemaining, 0);
     beginExecution(); resolveNext();
     assert.equal(tileAt(1, 0).type, "safe");
@@ -475,7 +474,7 @@ test("Wall-break paths use the queued position and Undo restores the wall restri
     tileAt(1, 1).type = "wall"; tileAt(1, 0).type = "wall";
     Math.random = () => 0.9; completeDicePhase();
     chooseAction("MOVE"); selectBoardTile(tileAt(0, 1)); confirmProgram();
-    chooseAction("BOMB"); selectBoardTile(tileAt(1, 1)); confirmProgram();
+    chooseAction("BREAK_WALL"); selectBoardTile(tileAt(1, 1)); confirmProgram();
     assert.deepEqual(movementPaths(currentPlanner()).get("2,1"), ["RIGHT", "RIGHT"]);
     assert.equal(movementPaths(currentPlanner()).has("1,0"), false);
     undoLastAction();
@@ -485,9 +484,9 @@ test("Wall-break paths use the queued position and Undo restores the wall restri
     // Neither a different player's secret wall break nor a bomb aimed at a
     // ridge can make those grids enter the movement preview.
     state.players[1].x = 2; state.players[1].y = 1;
-    state.players[1].program = [{action: "BOMB", dir: "LEFT"}];
+    state.players[1].program = [{action: "BREAK_WALL", dir: "LEFT"}];
     tileAt(0, 2).type = "ridge";
-    currentPlanner().program.push({action: "BOMB", dir: "DOWN"});
+    currentPlanner().program.push({action: "BREAK_WALL", dir: "DOWN"});
     assert.equal(movementPaths(currentPlanner()).has("1,1"), false);
     assert.equal(movementPaths(currentPlanner()).has("0,2"), false);
   `);
@@ -496,13 +495,13 @@ test("Wall-break paths use the queued position and Undo restores the wall restri
 test("A one-point roll cannot break a wall, and the two-point action cannot destroy ridges", () => {
   const {run, button} = game();
   run("Math.random = () => 0; completeDicePhase();");
-  assert.equal(button("BOMB").disabled, true);
+  assert.equal(button("BREAK_WALL").disabled, true);
   run(`
     tileAt(1, 0).type = "ridge";
-    executeAction(state.players[0], {action: "BOMB", dir: "RIGHT"});
+    executeAction(state.players[0], {action: "BREAK_WALL", dir: "RIGHT"});
     assert.equal(tileAt(1, 0).type, "ridge");
     assert.equal(canEnter(1, 0, 1), false);
-    assert.equal(directionAllowed("BOMB", "DOWN_RIGHT"), false);
+    assert.equal(directionAllowed("BREAK_WALL", "DOWN_RIGHT"), false);
   `);
 });
 

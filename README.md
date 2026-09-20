@@ -126,13 +126,12 @@ grid with Disarm, or breaking a wall reveals that grid and refreshes its visibil
 Starting grids begin known in round 1. Staying on a grid does not refresh its timer.
 Walls and ridges remain visible terrain. These rules apply equally to humans and bots.
 
-Scanning records numbered clues without revealing grid contents. Each clue counts
+Scan Here and 3×3 Scan record numbered clues without revealing grid contents. Each clue counts
 bombs in the eight neighboring grids, excluding its own grid, and records the scan
 round. A numbered grid can itself contain a bomb. Clues follow the selected visibility
 lifetime independently of grid knowledge: Clear retains them, Default expires them
 after two rounds, and Hard after one. Moving onto a grid does not refresh its clue.
-Rescanning replaces the number and its scan round. Scans no longer expose or permanently
-highlight initial map bombs.
+Rescanning replaces the number and its scan round. 3-Grid Scan instead reveals bombs directly and clears numbered clues in its area. Found initial bombs stay highlighted until removed; revealed planted bombs follow the visibility setting. Non-bomb grids keep their knowledge state.
 
 Knowledge is separate from grid contents: planting changes neither the known/unknown
 status nor the last reveal round. A bomb planted on a known grid is visible until that
@@ -168,17 +167,18 @@ Actions:
 - **Attack (1 point)** — reach up to 2 grids straight or 1 diagonally and push the nearest player 1 grid in that direction. Walls and ridges block the attack ray. If terrain or the board edge prevents the push, the target loses 1 HP. Another player blocks a push without causing damage.
 - **Dodge (1 point)** — choose any adjacent direction and prepare a sidestep against the next attack this round. The sidestep avoids the push if its destination is free; bombs on that grid still trigger. A blocked sidestep consumes the dodge and the attack continues. A later Dodge replaces the earlier direction; unused dodges expire at round end.
 - **Disarm (1 point, in the Dodge / Disarm group)** — check one adjacent grid in any of 8 directions and remove its bomb safely. The checked grid becomes known safe. There are no flags.
-- **Bomb / Break Wall (2 points)** — select an adjacent wall (up, down, left, or right) to break it, or a legal grid to plant a mine without changing its visibility. After adding a wall break to your program, later moves can select a path through that grid. The actual wall is removed only when the action executes; ridges are immune.
+- **Plant Bomb (1 point)** — plant on an adjacent non-terrain grid (up, down, left, or right), preserving visibility. Cannot break walls.
+- **Break Wall (2 points)** — destroy an adjacent wall (up, down, left, or right). Cannot plant bombs. After adding a wall break to your program, later moves can select a path through that grid. The actual wall is removed only when the action executes; ridges are immune.
 - **Scan Here (1 point)** — record a clue on your current grid counting bombs in its 8 neighboring grids; no direction is needed.
-- **3-Grid Scan (1 point)** — record a clue on each grid of a three-grid wedge in any of 8 directions.
-- **3×3 Scan (2 points)** — choose any of 8 directions and record a clue on each grid in a full 3×3 region in that direction.
+- **3-Grid Scan (2 points)** — reveal bombs directly in a three-grid wedge in any of 8 directions, without numbers.
+- **3×3 Scan (3 points)** — choose any of 8 directions and record a clue on each grid in a full 3×3 region in that direction.
 - **Discard Remaining** — secretly allocate any unused points to no-effect actions.
 
-Move, Attack, Dodge, and Disarm support diagonals. Bomb remains limited to up,
+Move, Attack, Dodge, and Disarm support diagonals. Plant Bomb and Break Wall remain limited to up,
 down, left, and right. All players roll before anyone chooses actions. Rolls are public;
 point allocation and programmed actions remain private while planning.
 
-There is no separate direction control. For Move, Attack, Dodge, Disarm, Bomb, and directional Scan actions,
+There is no separate direction control. For Move, Attack, Dodge, Disarm, Plant Bomb, Break Wall, and directional Scan actions,
 select the action and then click the intended grid on the board.
 
 The board highlights every destination reachable with the player's remaining points. Selecting a
@@ -202,12 +202,12 @@ from the player's actual position when the action resolves. A bomb is removed wi
 an empty grid is verified safe. Disarm cannot clear walls or ridges and still costs 1 point
 when no bomb is present. Use clues to choose which grid to disarm instead of placing flags.
 
-The 3-Grid Scan costs 1 point: cardinal directions select a three-wide adjacent edge, while a
-diagonal direction selects the three grids forming that corner. The 3×3 Scan costs 2 points.
-Each selected grid gets its own dated clue counting bombs in that grid's eight neighbors,
+The 3-Grid Scan costs 2 points and reveals bombs directly: cardinal directions select a three-wide adjacent edge, while a
+diagonal direction selects the three grids forming that corner. The 3×3 Scan costs 3 points.
+Each grid selected by 3×3 Scan gets its own dated clue counting bombs in that grid's eight neighbors,
 excluding the center. At board edges, only neighboring grids on the board are counted.
-Walls do not block scans or clue counts. Scans reveal neither bomb positions nor whether a
-clue's center is safe. Every scan previews its clue locations; a complete directional scan
+Walls do not block scans or clue counts. Numbered scans do not reveal bomb positions or prove a
+clue's center safe. Every scan previews its footprint; a complete directional scan
 region must fit on the board. Stored numbers change only when rescanned, so later bomb
 placement, disarming, or explosions can make a clue outdated. Discarded
 points fill the allocation tracker like other spent points and remain in the hidden execution
@@ -219,7 +219,7 @@ Board:
 - default setup: 16 walls and 20% hidden bombs;
 - hidden bombs are configurable from 3% up to the remaining board capacity;
 - 0–20 wall tiles and 0–2 connected ridge lines of up to five grids can be generated;
-- walls and ridges block movement, but walls can be destroyed with Bomb while ridges are indestructible;
+- walls and ridges block movement, but walls can be destroyed with Break Wall while ridges are indestructible;
 - mines deal 1 HP in rounds 1–20 and are consumed after exploding; from round 21,
   triggering a mine kills the player regardless of HP.
 - A triggered mine's explosion marker lasts for the rest of that round. At the start
@@ -305,7 +305,7 @@ Each player stores health, position, die roll, remaining points, and a private `
    point budget, and advances a queue index instead of repeatedly shifting the queue. Search visits
    each reachable grid once; the stored paths are bounded by the six-point budget.
 4. **Allocation and Undo:** `confirmProgram()` expands movement into one queue item per grid and
-   discards into one item per unused point. A two-point scan or bomb is still one queue item, not two.
+   discards into one item per unused point. Non-movement actions occupy one queue item regardless of point cost.
    `allocationId` groups the steps from one choice so Undo refunds that entire choice.
 5. **Execution:** `resolveQueuedAction()` handles one item, including eliminated-player skips,
    health-change recording, and index advancement. Both execution buttons use it, so single-step

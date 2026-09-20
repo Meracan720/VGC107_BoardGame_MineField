@@ -7,9 +7,10 @@ function fixture() {
   harness.run(`
     state.turnOrder = [3, 1, 4, 2];
     state.players.forEach((p, i) => p.roll = [3, 1, 6, 2][i]);
-    state.players[0].program = [{action: "AREA_SCAN", dir: "DOWN_RIGHT"}, {action: "DODGE", dir: "DOWN"}];
+    state.players[0].program = [{action: "TRI_SCAN", dir: "DOWN_RIGHT"}, {action: "DODGE", dir: "DOWN"}];
     state.players[1].program = [{action: "DISCARD"}];
-    state.players[2].program = [{action: "BOMB", dir: "DOWN"}, {action: "AREA_SCAN", dir: "DOWN_LEFT"}, {action: "DODGE", dir: "LEFT"}, {action: "DISARM", dir: "DOWN"}];
+    tileAt(9,1).type = "wall";
+    state.players[2].program = [{action: "BREAK_WALL", dir: "DOWN"}, {action: "TRI_SCAN", dir: "DOWN_LEFT"}, {action: "DODGE", dir: "LEFT"}, {action: "DISARM", dir: "DOWN"}];
     state.players[3].program = [{action: "DISCARD"}, {action: "DISCARD"}];
     beginExecution();
   `);
@@ -40,7 +41,7 @@ test("Resolving a two-point action completes two slots and transfers the blue co
   assert.equal(rows[0].children[0].textContent, "");
   assert.equal(rows[1].children[0].textContent, "");
   assert.equal(rows[2].children[0].textContent, "*");
-  assert.match(rows[0].children[0].title, /Bomb/);
+  assert.match(rows[0].children[0].title, /Break Wall/);
   assert.ok(rows[0].children[0].children[0].classList.contains("point-bomb"));
   assert.ok(rows[1].children[0].children[0].classList.contains("point-bomb"));
   assert.ok(rows[2].children[0].children[0].classList.contains("usable"));

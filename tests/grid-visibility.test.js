@@ -41,7 +41,7 @@ for (const action of ["DISARM", "MOVE"]) {
       finishRound();
       assert.equal(tile.revealed, false);
       executeAction(state.players[0], {action: "BOMB", dir: "RIGHT"});
-      executeAction(state.players[0], {action: "TRI_SCAN", dir: "DOWN_RIGHT"});
+      GameRules.scan(state.players[0], [tile]);
       assert.equal(tile.revealed, false);
       assert.ok(Number.isInteger(tile.clueCount));
       assert.equal(tile.scannedInitialMine, false);
@@ -139,7 +139,7 @@ test("Hard mode hides exploded/disarmed/demolished grids without changing their 
   run(`
     tileAt(1, 0).type = "mine";
     tileAt(0, 1).type = "wall";
-    executeAction(state.players[0], {action: "BOMB", dir: "DOWN"});
+    executeAction(state.players[0], {action: "BREAK_WALL", dir: "DOWN"});
     executeAction(state.players[0], {action: "MOVE", dir: "RIGHT"});
     tileAt(2, 0).type = "mine";
     executeAction(state.players[0], {action: "DISARM", dir: "RIGHT"});

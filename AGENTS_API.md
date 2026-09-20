@@ -94,12 +94,11 @@ stored clues. Only rescanning refreshes the count and scan round.
 
 Clues expire independently of tile knowledge using the same visibility duration:
 R+2 for Default, R+1 for Hard, and no expiry for Clear. Entering a tile or checking it
-with Disarm refreshes tile knowledge but not its clue. Scans no longer directly
-reveal or permanently mark initial bombs. The `bombs.found` count includes only
+with Disarm refreshes tile knowledge but not its clue. 3-Grid Scan instead reveals bombs directly, clears numbers in its area, and permanently highlights found initial bombs until removed. Planted bombs follow normal visibility expiry. The `bombs.found` count includes only
 currently revealed bombs, not bombs inferred from numbered clues.
 
 `position` follows your queued moves. Movement choices in `legalActions` also treat
-walls targeted by your earlier queued Bomb actions as passable. `board` still shows
+walls targeted by your earlier queued BREAK_WALL actions as passable. `board` still shows
 the actual current terrain. Previews do not simulate other players' moves, pushes, or
 occupancy. A listed action is legal to **program**, not guaranteed to succeed when it
 executes. Scans reveal results during execution, never between planning calls.
@@ -116,10 +115,11 @@ Direction may be omitted or `null` for nondirectional actions.
 | `ATTACK` | 1 | Up to 2 grids cardinally, 1 diagonally; nearest player is pushed 1 grid. Walls/ridges block the ray. `region` lists reachable grids in order; `target` is the first grid for aiming. A terrain/edge-blocked push deals 1 HP; a player-blocked push deals no damage. |
 | `DODGE` | 1 | Any of eight directions; prepare a one-grid sidestep against the next attack this round. |
 | `DISARM` | 1 | Any of eight directions; safely check and remove a bomb from one adjacent grid. |
-| `BOMB` | 2 | Cardinal only; plants a mine or breaks a wall. |
+| `BOMB` | 1 | Cardinal only; plants a mine on non-terrain grids; cannot break walls. |
+| `BREAK_WALL` | 2 | Cardinal only; destroys a wall; cannot plant mines or destroy ridges. |
 | `SCAN` | 1 | None; record a clue on the current grid counting bombs in its eight neighbors. |
-| `TRI_SCAN` | 1 | Any of eight directions; record a clue on each of three grids. Full region must fit. |
-| `AREA_SCAN` | 2 | Any of eight directions; record a clue on each grid in a 3×3 region. Full region must fit. |
+| `TRI_SCAN` | 2 | Any of eight directions; reveal bombs directly in three grids, without numbers. Full region must fit. |
+| `AREA_SCAN` | 3 | Any of eight directions; record a clue on each grid in a 3×3 region. Full region must fit. |
 | `DISCARD` | 1 | None; discards **one** point per agent call. |
 
 Direction names: `UP`, `DOWN`, `LEFT`, `RIGHT`, `UP_LEFT`, `UP_RIGHT`, `DOWN_LEFT`,
@@ -143,7 +143,7 @@ Starting in round 21, mine triggers kill regardless of HP. This is Sudden Death,
 not a fixed round limit.
 
 The engine rolls once for every player in a separate public phase, then requests each bot's choices sequentially until all points
-are spent, and charges costs itself. A two-point action remains one execution item.
+are spent, and charges costs itself. Each action remains one execution item regardless of its point cost.
 Bots' plans enter the same step-major queue as human plans and are revealed only as
 each action resolves. There is no public method for setting HP, dice, terrain, or
 another player's program.

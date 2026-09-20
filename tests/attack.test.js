@@ -61,7 +61,7 @@ test("Board targeting accepts the new attack ranges and rejects beyond-range or 
     selectBoardTile(tileAt(6, 5)); assert.equal(selection.dir, null);
     tileAt(5, 4).type = "wall";
     selectBoardTile(tileAt(6, 4)); assert.equal(selection.dir, null);
-    p.program.push({action: "BOMB", dir: "RIGHT"});
+    p.program.push({action: "BREAK_WALL", dir: "RIGHT"});
     selectBoardTile(tileAt(6, 4)); assert.equal(selection.dir, "RIGHT");
   `);
 });

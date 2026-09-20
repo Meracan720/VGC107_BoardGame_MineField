@@ -134,7 +134,9 @@
                 <li>Move: a step blocked by another player is skipped. Its point is spent; later steps continue from your actual position.</li>
                 <li>Attack: reach 2 grids straight or 1 diagonally and push 1 grid. A wall, ridge, or edge blocking the push causes 1 HP damage. Another player blocks without damage.</li>
                 <li>Dodge: choose an adjacent escape direction. The next attack triggers one sidestep. A blocked destination makes it fail; landing on a bomb still triggers it. Dodges expire each round and do not stack.</li>
-                <li>Scan Here: for 1 point, record the bomb count in the eight grids around you. Larger scans record a count at each scanned grid. A number does not prove its own grid safe.</li>
+                <li>Scan Here: 1 point records the bomb count in the eight grids around you. 3×3 Scan costs 3 points and records nine numbered clues. A number does not prove its own grid safe.</li>
+                <li>3-Grid Scan: 2 points reveals bombs directly in three grids, with no numbers. Other grids keep their visibility. Found initial bombs stay visible until removed; planted bombs follow the visibility setting.</li>
+                <li>Plant Bomb: 1 point on an adjacent non-terrain grid. Break Wall: a separate 2-point action targeting an adjacent wall. Both use straight directions only.</li>
                 <li>Clues are dated snapshots. Planting, disarming, and explosions do not update them. Rescan to refresh; clues expire with the selected visibility mode.</li>
                 <li>Disarm: spend 1 point to check one adjacent grid, including diagonals, and safely remove its bomb. No flags are needed.</li>
                 <li>From round 21, bombs cause instant death. Blocked-push damage stays at 1 HP.</li>
@@ -222,15 +224,16 @@
             <div class="action-grid" id="actionButtons">
               <button data-action="MOVE">Move · 1 pt</button>
               <button data-action="ATTACK">Attack · 1 pt</button>
-              <button data-action="BOMB" title="Plant a bomb or break an adjacent wall for 2 points. Ridges cannot be broken.">Bomb / Break Wall · 2 pts</button>
+              <button data-action="BOMB" title="Plant a bomb on an adjacent non-terrain grid; preserves visibility.">Plant Bomb · 1 pt</button>
+              <button data-action="BREAK_WALL" title="Destroy an adjacent wall for 2 points. Ridges cannot be broken.">Break Wall · 2 pts</button>
               <fieldset class="defense-actions">
                 <legend>Dodge / Disarm</legend>
                 <button data-action="DODGE">Dodge · 1 pt</button>
                 <button data-action="DISARM" title="Choose one adjacent grid to check and disarm safely.">Disarm · 1 pt</button>
               </fieldset>
               <button data-action="SCAN">Scan Here · 1 pt</button>
-              <button data-action="TRI_SCAN">3-Grid Scan · 1 pt</button>
-              <button data-action="AREA_SCAN">3×3 Scan · 2 pts</button>
+              <button data-action="TRI_SCAN">3-Grid Scan · 2 pts</button>
+              <button data-action="AREA_SCAN">3×3 Scan · 3 pts</button>
               <button data-action="DISCARD">Discard Remaining</button>
             </div>
             <p id="actionHint" class="board-selection-hint">For directional actions, select an action and click its target on the board.</p>
