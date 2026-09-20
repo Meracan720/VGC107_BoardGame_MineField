@@ -1,3 +1,10 @@
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
 # Game evaluation — September 19, 2026
 
 The core engine is functioning consistently in the checks performed. The largest

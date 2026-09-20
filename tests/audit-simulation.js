@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 // Reproducible engine audit, not a browser or a human balance study.
 // Usage: node tests/audit-simulation.js [matches-per-level=5] [round-cap=60] [output-name=audit-results.json]
 const fs = require("node:fs");

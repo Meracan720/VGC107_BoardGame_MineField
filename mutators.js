@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Mode definitions live here so future mutators can add their own title,
  * description, and victory condition without changing the setup list. */
 const GameMutators = (() => {

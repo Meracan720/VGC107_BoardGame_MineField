@@ -1,3 +1,10 @@
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
 # Minefield Protocol — Local Browser Prototype
 
 Author Notes:  
@@ -23,7 +30,7 @@ An offline, pass-and-play board game built with plain HTML, CSS, and JavaScript.
 No installation is required.
 
 1. Open `index.html` in Chrome, Edge, or Firefox. If downloaded as a ZIP, extract it first.
-2. Choose 3–6 players, set starting health (1–10 HP), and configure the terrain and bomb density.
+2. Choose **Game Config** on the welcome page, then choose 3–6 players, set starting health (1–10 HP), and configure the terrain and bomb density.
 3. Select **Start Game**, roll in playing order, then select **Begin Planning**.
    Pass the computer between human players during private planning.
 
@@ -251,7 +258,9 @@ the HTML so all controls exist before event handlers are registered.
 
 | File | Responsibility |
 | --- | --- |
-| `index.html` | Setup inputs, board container, player/status sidebar, and phase controls. |
+| `index.html` | Welcome page linking to game configuration, instructions, and author's notes. |
+| `game.html` | Setup inputs, board container, player/status sidebar, and phase controls. |
+| `author-notes.html` | Author credits and project context. |
 | `style.css` | Responsive layout, player colors, allocation cubes, and feedback animations. |
 | `game.js` | Rules, map generation, private planning, action resolution, and rendering. |
 | `game-rules.js` | Directional combat and disarming, numbered clue snapshots, Sudden Death, and bomb-clearance victory. |

@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Public execution progress. Pending slots depend only on the public die roll;
  * action costs and descriptions appear here only after the action resolves. */
 const ExecutionView = (() => {

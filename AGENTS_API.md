@@ -1,3 +1,10 @@
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
 # Minefield agent interface — version 2
 
 `bots.js` contains the local policies and `MinefieldAgents` registry. `game-agents.js`

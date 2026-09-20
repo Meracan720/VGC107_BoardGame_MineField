@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 // Usage: node tests/audit-maps.js [maps-per-configuration=1000]
 const {game} = require("./helpers");
 const count = Number(process.argv[2] || 1000);

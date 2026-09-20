@@ -1,10 +1,17 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
-const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const html = fs.readFileSync(path.join(root, "game.html"), "utf8");
 const source = ["bots.js", "game-agents.js", "turn-order.js", "execution-view.js", "grid-visibility.js", "dice-phase.js", "mutators.js", "game-rules.js", "game.js"]
   .map(file => fs.readFileSync(path.join(root, file), "utf8")).join("\n");
 

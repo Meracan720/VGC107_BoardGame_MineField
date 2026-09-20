@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 // Rules and defaults. Keep action costs here so planning, refunds, and execution agree.
 const SIZE = 10;
 const DEFAULT_START_HP = 5;

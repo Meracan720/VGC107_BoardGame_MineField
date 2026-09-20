@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Local decision policies and the public extension registry. No DOM or game-state access.
  * An adapter implements chooseAction(observation, {signal}) and may return a Promise.
  * See AGENTS_API.md for the versioned observation and action contract.

@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Combat, clue snapshots, and endgame pressure. No timers or private plans. */
 const GameRules = (() => {
   const suddenDeathRound = 21;

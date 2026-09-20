@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 // Diagnostic reproductions of current problems; these assert the observed
 // behavior, not the desired behavior. Update/remove after addressing findings.
 const assert = require("node:assert/strict");

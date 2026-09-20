@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Grid knowledge is independent of contents and explosion-marker lifetime.
  * Only an observation refreshes knowledge; planting never changes this state. */
 const GridVisibility = (() => {

@@ -1,3 +1,10 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 /* Match order. Player IDs, colors, and
  * starting positions stay attached to their original seats. */
 const TurnOrder = (() => {
