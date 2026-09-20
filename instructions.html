@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minefield Protocol - Instructions</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous" onerror="this.onerror=null; this.removeAttribute('integrity'); this.removeAttribute('crossorigin'); this.href='vendor/bootstrap-5.3.8.min.css';" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="docs-page">
+    <header>
+      <div>
+        <p class="eyebrow">Project introduction</p>
+        <h1>Minefield Protocol</h1>
+        <p class="subtitle">Program your actions. Predict the board. Be the last survivor.</p>
+      </div>
+      <nav class="header-actions" aria-label="Page navigation">
+        <a class="secondary button-link header-link" href="index.html">Welcome</a>
+        <a class="secondary button-link header-link" href="game.html">Game Config</a>
+      </nav>
+    </header>
+
+    <section class="panel intro-hero">
+      <div>
+        <p class="eyebrow">Local browser prototype</p>
+        <h1>A pass-and-play board game about planning under uncertainty.</h1>
+        <p class="subtitle">Minefield Protocol is an offline board game built with plain HTML, CSS, and JavaScript. Players secretly program actions, then watch those plans resolve across a hidden 10 x 10 minefield.</p>
+      </div>
+      <div class="intro-meta">
+        <div><strong>Players</strong>3-6 seats, with optional local bots</div>
+        <div><strong>Format</strong>Pass-and-play, private planning, public resolution</div>
+        <div><strong>Goal</strong>Survive, clear the bombs, and out-plan the table</div>
+      </div>
+    </section>
+
+    <nav class="panel intro-section intro-nav" aria-label="Instructions sections">
+      <a href="#start">Getting started</a>
+      <a href="#players">Players and bots</a>
+      <a href="#rounds">Rounds and actions</a>
+      <a href="#board">Board and visibility</a>
+      <a href="#victory">Victory</a>
+    </nav>
+
+    <section id="start" class="panel intro-section">
+      <h2>Getting started</h2>
+      <ol>
+        <li>Open <code>index.html</code> in Chrome, Edge, or Firefox, then choose <a href="game.html">Game Config</a>. No installation or local server is required.</li>
+        <li>Choose the number of seats, starting health, terrain, bomb density, and grid visibility.</li>
+        <li>Select a Mutator, then choose <strong>Start Game</strong>.</li>
+        <li>Roll action points in playing order. After all rolls are public, program actions privately.</li>
+      </ol>
+      <p class="intro-note">For a solo game, set Human players to <strong>1 human - play solo</strong>. Bots fill the remaining seats and use the same visible information as human players.</p>
+    </section>
+
+    <div class="intro-columns">
+      <section id="players" class="panel intro-section">
+        <h2>Players and bots</h2>
+        <p>The game supports 3-6 seats. All-human games pass the computer between players; mixed games combine human seats with local bots.</p>
+        <ul>
+          <li><strong>New Player:</strong> wanders, takes risks, and sometimes misses tactical opportunities.</li>
+          <li><strong>Moderate:</strong> pursues opponents, routes around visible mines, and takes useful pushes.</li>
+          <li><strong>Expert:</strong> prepares unknown ground with Disarm and prioritizes safer tactical plays.</li>
+        </ul>
+        <p>Dice rolls are public, while programmed actions remain private until they resolve. Bot difficulty describes its strategy, not a guaranteed skill rating.</p>
+      </section>
+
+      <section class="panel intro-section">
+        <h2>Setup choices</h2>
+        <h3>Mutators</h3>
+        <p><strong>Last Survivor</strong> is the default mode. The last standing player wins. A match can also end when every bomb has been cleared.</p>
+        <h3>Playing sequence</h3>
+        <p>Choose a designated order to assign seats manually, or random order to shuffle once at the start of the match. The order remains stable across rounds.</p>
+        <h3>Defaults</h3>
+        <p>Four seats, one human, Moderate bots, random order, 5 HP, Default visibility, 16 walls, and 20% hidden bombs.</p>
+      </section>
+    </div>
+
+    <section id="rounds" class="panel intro-section">
+      <h2>Rounds and actions</h2>
+      <ol>
+        <li>Every living player rolls a d6 publicly in playing order.</li>
+        <li>Players secretly spend those points on a variable-length action program.</li>
+        <li>The first action resolves for every player in playing order, then the next action does the same.</li>
+        <li>Victory is checked after every action. Otherwise, the next round begins.</li>
+      </ol>
+      <div class="intro-columns">
+        <div>
+          <h3>Movement and combat</h3>
+          <ul>
+            <li><strong>Move:</strong> 1 point per grid, using all 8 directions.</li>
+            <li><strong>Attack:</strong> reach up to 2 grids straight or 1 diagonally and push the nearest player.</li>
+            <li><strong>Dodge:</strong> prepare an adjacent sidestep against the next attack.</li>
+            <li><strong>Disarm:</strong> safely check and remove a bomb in one adjacent grid.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Minefield actions</h3>
+          <ul>
+            <li><strong>Plant Bomb:</strong> place a bomb on an adjacent non-terrain grid.</li>
+            <li><strong>Break Wall:</strong> destroy an adjacent wall for 2 points.</li>
+            <li><strong>Scan Here:</strong> record a clue counting bombs in the 8 neighboring grids.</li>
+            <li><strong>3-Grid Scan / 3 x 3 Scan:</strong> reveal bombs directly or record a region of clues.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="board" class="panel intro-section">
+      <h2>Board and visibility</h2>
+      <p>The board is 10 x 10. Walls and ridges block movement; walls can be destroyed, while ridges are indestructible. Bombs remain hidden until discovered by movement, scanning, or Disarm.</p>
+      <ul>
+        <li><strong>Clear:</strong> explored grids stay known for the whole game.</li>
+        <li><strong>Default:</strong> explored grids become unknown after two rounds.</li>
+        <li><strong>Hard:</strong> explored grids become unknown after one round.</li>
+      </ul>
+      <p>Scan clues are dated snapshots. A clue counts neighboring bombs at the time of the scan and does not prove that its own grid is safe.</p>
+    </section>
+
+    <section id="victory" class="panel intro-section">
+      <h2>Victory conditions</h2>
+      <p>The last living player wins immediately. If more than one player remains and no bombs are left, the survivor with the highest HP wins; tied leaders share victory. Every bomb must be cleared, including bombs planted during the match.</p>
+      <p>From round 21 onward, triggering a mine causes instant death. Attack collision damage remains 1 HP.</p>
+    </section>
+  </main>
+
+    <footer class="site-footer">Minefield Protocol · Author's mark by Gary (Jiaxing Chen) 2026</footer>
+</body>
+</html>

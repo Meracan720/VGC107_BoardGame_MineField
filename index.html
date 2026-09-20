@@ -1,202 +1,63 @@
 <!DOCTYPE html>
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Minefield Protocol - Local Prototype</title>
+  <title>Minefield Protocol - Welcome</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous" onerror="this.onerror=null; this.removeAttribute('integrity'); this.removeAttribute('crossorigin'); this.href='vendor/bootstrap-5.3.8.min.css';" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
+  <main class="welcome-page welcome-home">
     <header>
       <div>
+        <p class="eyebrow">Welcome to the minefield</p>
         <h1>Minefield Protocol</h1>
         <p class="subtitle">Program your actions. Predict the board. Be the last survivor.</p>
       </div>
-      <button id="newGameBtn" class="secondary">New Game</button>
     </header>
-
-    <!-- Setup values mirror the fallback defaults in game.js. -->
-    <section id="setupPanel" class="panel setup-panel">
-      <h2>Local Game Setup</h2>
-      <p>Configure the players, starting health, terrain, and hidden bomb density before generating the map.</p>
-      <label>
-        Players
-        <select id="playerCount">
-          <option value="3">3 Players</option>
-          <option value="4">4 Players</option>
-          <option value="5">5 Players</option>
-          <option value="6">6 Players</option>
-        </select>
-      </label>
-
-      <label>
-        <span>Starting Health <output id="startingHpValue" for="startingHp">3 HP</output></span>
-        <input id="startingHp" type="range" min="1" max="10" step="1" value="3" aria-describedby="startingHpHint" />
-        <span id="startingHpHint" class="setup-hint">Applies to every player (1–10 HP).</span>
-      </label>
-
-      <div class="setup-options">
-        <label>
-          Terrain Type
-          <select id="terrainType">
-            <option value="random">Random Mix</option>
-            <option value="wall">Walls</option>
-            <option value="ridge">Ridges</option>
-          </select>
-        </label>
-
-        <label>
-          <span>Wall Tiles <output id="terrainCountValue">12</output></span>
-          <input id="terrainCount" type="range" min="0" max="20" value="12" />
-        </label>
-
-        <label>
-          <span>Long Ridge Lines <output id="ridgeCountValue">1</output></span>
-          <input id="ridgeCount" type="range" min="0" max="2" value="1" />
-        </label>
-
-        <label>
-          <span>Bomb Density <output id="bombPercentValue">25%</output></span>
-          <input id="bombPercent" type="range" min="3" max="89" value="25" />
-        </label>
+    <section class="panel intro-hero" aria-labelledby="welcomeHeading">
+      <div>
+        <p class="eyebrow">Plan together. Survive alone.</p>
+        <h2 id="welcomeHeading">Every move is a calculated risk.</h2>
+        <p class="subtitle">Build your action program, anticipate your opponents, and find your way across a hidden minefield. Set up a match or learn the rules before your first roll.</p>
       </div>
-      <p id="mapSummary" class="map-summary">25 hidden bombs · 12 walls · 1 long ridge</p>
-      <button id="startGameBtn">Start Game</button>
-    </section>
-
-    <section id="gamePanel" class="hidden">
-      <div class="main-grid">
-        <!-- Public information stays visible throughout planning and execution. -->
-        <aside class="info-sidebar" aria-label="Round details and player health">
-          <section class="panel status-panel" aria-labelledby="roundDetailsHeading">
-            <h2 id="roundDetailsHeading">Round Details</h2>
-            <div class="status-row">
-              <div><span class="label">Round</span><strong id="roundLabel">1</strong></div>
-              <div><span class="label">Phase</span><strong id="phaseLabel">Planning</strong></div>
-              <div><span class="label">Current</span><strong id="currentPlayerLabel">Player 1</strong></div>
-              <div title="Found counts revealed bombs that are still on the board.">
-                <span class="label">Bombs Remaining</span>
-                <strong id="bombStats" class="bomb-count" role="status" aria-live="polite" aria-atomic="true">0 bombs / 0 found</strong>
-              </div>
-            </div>
-            <div id="message" class="message">Roll for action points, then build your program.</div>
-          </section>
-
-          <section class="panel player-panel" aria-labelledby="playersHeading">
-            <h2 id="playersHeading">Players</h2>
-            <div id="playerList"></div>
-          </section>
-        </aside>
-
-        <section class="panel board-panel">
-          <div class="board-head">
-            <div>
-              <h2>Minefield</h2>
-              <p>Unknown tiles are hidden. Walls and ridges are visible. Mines are revealed when scanned or triggered.</p>
-            </div>
-            <div class="legend">
-              <span>■ Unknown</span>
-              <span>□ Safe</span>
-              <span>◆ Mine</span>
-              <span>▣ Wall</span>
-              <span>▲ Ridge</span>
-            </div>
-          </div>
-          <!-- game.js creates and reuses the grid cells inside this container. -->
-          <div id="board" class="board" aria-label="10 by 10 game board"></div>
-        </section>
-
-        <!-- Only one phase panel is visible; the pass screen hides private programs. -->
-        <aside class="panel control-panel">
-          <div id="planningControls">
-            <h2>Program Actions</h2>
-            <p id="planningHint">Player 1: roll for action points.</p>
-
-            <div class="dice-box" id="diceBox">
-              <span class="label">Action Point Die</span>
-              <div class="dice-row">
-                <div id="diceFace" class="dice-face" role="status" aria-live="polite">—</div>
-                <button id="rollDiceBtn" type="button">Roll d6</button>
-              </div>
-              <p id="diceHint">Roll before selecting any actions.</p>
-            </div>
-
-            <div class="allocation-panel">
-              <div class="allocation-heading">
-                <span class="label">Private Point Allocation</span>
-                <span class="points-remaining" title="Points remaining">Left: <strong id="pointsRemaining">—</strong></span>
-              </div>
-              <p id="movementCostPreview" class="movement-cost-preview hidden"></p>
-              <div id="allocationTrack" class="allocation-track" role="status" aria-live="polite">
-                <span class="allocation-cell locked"></span>
-                <span class="allocation-cell locked"></span>
-                <span class="allocation-cell locked"></span>
-                <span class="allocation-cell locked"></span>
-                <span class="allocation-cell locked"></span>
-                <span class="allocation-cell locked"></span>
-              </div>
-              <div class="allocation-legend" aria-label="Allocation colors">
-                <span class="legend-move">Move</span>
-                <span class="legend-scan">Scan</span>
-                <span class="legend-attack">Attack</span>
-                <span class="legend-dodge">Dodge / Disarm</span>
-                <span class="legend-bomb">Bomb</span>
-                <span class="legend-discard">Discard</span>
-              </div>
-            </div>
-
-            <div class="action-grid" id="actionButtons">
-              <button data-action="MOVE">Move · 1 pt</button>
-              <button data-action="ATTACK">Attack · 1 pt</button>
-              <button data-action="BOMB" title="Plant a bomb or break an adjacent wall for 2 points. Ridges cannot be broken.">Bomb / Break Wall · 2 pts</button>
-              <fieldset class="defense-actions">
-                <legend>Dodge / Disarm</legend>
-                <button data-action="DODGE">Dodge · 1 pt</button>
-                <button data-action="DISARM" title="Remove bombs from the eight surrounding grids without detonating them.">Disarm · 1 pt</button>
-              </fieldset>
-              <button data-action="SCAN">Scan Around · 2 pts</button>
-              <button data-action="TRI_SCAN">3-Grid Scan · 1 pt</button>
-              <button data-action="AREA_SCAN">3×3 Scan · 2 pts</button>
-              <button data-action="DISCARD">Discard Remaining</button>
-            </div>
-            <p id="actionHint" class="board-selection-hint">For directional actions, select an action and click its target on the board.</p>
-
-            <button id="confirmProgramBtn" disabled>Add to Program</button>
-
-            <div class="programmed">
-              <ol id="programList" class="program-list">
-                <li>Roll the die to begin.</li>
-              </ol>
-              <button id="undoActionBtn" class="secondary" type="button" disabled>Undo Last Action</button>
-            </div>
-
-          </div>
-
-          <div id="passControls" class="hidden pass-screen">
-            <h2>Pass the Computer</h2>
-            <p id="passMessage">Give the computer to the next player.</p>
-            <button id="readyNextPlayerBtn">Ready</button>
-          </div>
-
-          <div id="executionControls" class="hidden">
-            <h2>Execution Phase</h2>
-            <p>Programmed actions remain hidden until each one resolves.</p>
-            <div id="executionQueue" class="queue" role="log" aria-live="polite"></div>
-            <button id="resolveNextBtn">Resolve Next Action</button>
-            <button id="resolveAllBtn" class="secondary">Resolve Remaining</button>
-          </div>
-
-          <div id="winnerControls" class="hidden">
-            <h2 id="winnerTitle">Winner</h2>
-            <p id="winnerText"></p>
-            <button id="playAgainBtn">Play Again</button>
-          </div>
-        </aside>
+      <div class="intro-meta">
+        <div><strong>3–6 players</strong>Pass-and-play or play solo with bots</div>
+        <div><strong>10 × 10 minefield</strong>Hidden bombs, terrain, and rival plans</div>
+        <div><strong>Play in your browser</strong>No installation required</div>
       </div>
     </section>
+    <nav class="welcome-links" aria-label="Explore Minefield Protocol">
+      <a class="panel welcome-card" href="game.html">
+        <span class="eyebrow">01 / Play</span>
+        <h2>Game Config</h2>
+        <p>Choose your players, bots, and map settings, then start a match.</p>
+        <span class="welcome-cta">Set up a game &rarr;</span>
+      </a>
+      <a class="panel welcome-card" href="instructions.html">
+        <span class="eyebrow">02 / Learn</span>
+        <h2>Instructions</h2>
+        <p>Learn the round sequence, available actions, and ways to win.</p>
+        <span class="welcome-cta">Read the rules &rarr;</span>
+      </a>
+      <a class="panel welcome-card" href="author-notes.html">
+        <span class="eyebrow">03 / About</span>
+        <h2>Author’s Notes</h2>
+        <p>Meet the author and discover the course project behind the game.</p>
+        <span class="welcome-cta">About the project &rarr;</span>
+      </a>
+    </nav>
   </main>
+  <footer class="site-footer">Minefield Protocol · Author's mark by Gary (Jiaxing Chen) 2026</footer>
 
-  <script src="game.js"></script>
+
 </body>
 </html>

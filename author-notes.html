@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!--
+Author: Gary (JiaxingChen)
+Project: VGC107 - Board Game Term Project
+Last Update: 2026-09-20
+Publish Version: v0.3.1
+-->
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minefield Protocol - Author’s Notes</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous" onerror="this.onerror=null; this.removeAttribute('integrity'); this.removeAttribute('crossorigin'); this.href='vendor/bootstrap-5.3.8.min.css';" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="welcome-page">
+    <header>
+      <div>
+        <p class="eyebrow">About the project</p>
+        <h1>Author’s Notes</h1>
+        <p class="subtitle">Minefield Protocol</p>
+      </div>
+      <nav class="header-actions" aria-label="Page navigation">
+        <a class="button-link header-link" href="index.html">Welcome</a>
+        <a class="button-link header-link" href="game.html">Game Config</a>
+        <a class="button-link header-link" href="instructions.html">Instructions</a>
+      </nav>
+    </header>
+    <section class="panel intro-section">
+      <h4>VGC 107 Term Project</h4>
+      <h2>Game: MindField Protocol</h2>
+      <p class="eyebrow">Author: Gary (Jiaxing Chen)</p>
+      <p> 
+        Last Update: Sep 20, 2026 <br>
+        version: v0.3.1 <br>
+
+        Probably this would be sent to Discord for open testing so if you have any feedback, <br>
+        please let me know by DM or just quote me in the chat.
+
+      </p>
+      
+      
+      
+
+
+      <p>Minefield Protocol is a board game prototype created for <strong>VGC 107 – History of Video Games</strong>.</p>
+      <p>The game combines private action programming, public resolution, and a hidden minefield. Players plan ahead while navigating uncertain information and competing to survive.</p>
+      <h3>The browser prototype</h3>
+      <p>Built with plain HTML, CSS, and JavaScript, the prototype supports local pass-and-play and solo matches with local bots. It runs offline without installation.</p>
+    </section>
+    <section class="panel intro-section update-log" aria-labelledby="updateLogHeading">
+      <div class="update-log-heading">
+        <div>
+          <p class="eyebrow">Release history</p>
+          <h2 id="updateLogHeading">Update Log</h2>
+        </div>
+        <span class="release-badge">Current: v0.3.1</span>
+      </div>
+      <article class="release-entry" aria-labelledby="release031Heading">
+        <div class="release-heading">
+          <h3 id="release031Heading">v0.3.1</h3>
+          <time datetime="2026-09-20">September 20, 2026</time>
+        </div>
+        <ul>
+          <li>Added a welcome page linking to Game Config, Instructions, and Author’s Notes.</li>
+          <li>Moved the game and configuration screen to <a href="game.html">game.html</a>.</li>
+          <li>Improved page alignment and responsive layouts.</li>
+          <li>Added Bootstrap CSS with an automatic local fallback for offline play.</li>
+          <li>Added file ownership headers and this update log.</li>
+        </ul>
+      </article>
+      <details class="release-entry">
+        <summary>v0.3 — Previous update</summary>
+        <ul>
+          <li>Established new feature: Mutators.</li>
+          <li>Game BOP for game progression.</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

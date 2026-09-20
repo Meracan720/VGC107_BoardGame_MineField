@@ -1,9 +1,16 @@
+/*
+ * Author: Gary (JiaxingChen)
+ * Project: VGC107 - Board Game Term Project
+ * Last Update: 2026-09-20
+ * Publish Version: v0.3.1
+ */
+
 // Rules and defaults. Keep action costs here so planning, refunds, and execution agree.
 const SIZE = 10;
-const DEFAULT_START_HP = 3;
+const DEFAULT_START_HP = 5;
 const MAX_START_HP = 10;
-const DEFAULT_BOMB_PERCENT = 25;
-const DEFAULT_WALL_COUNT = 12;
+const DEFAULT_BOMB_PERCENT = 20;
+const DEFAULT_WALL_COUNT = 16;
 const DEFAULT_RIDGE_LINES = 1;
 const RIDGE_LENGTH = 5;
 const MAX_ACTION_POINTS = 6;
@@ -26,31 +33,35 @@ const MOVEMENT_DIRECTIONS = Object.entries(DIRS).sort(
 
 const ACTIONS = {
   MOVE:   {cost: 1, needsDir: true,  allowsDiagonal: true,  label: "Move"},
-  ATTACK: {cost: 1, needsDir: true,  allowsDiagonal: false, label: "Attack"},
-  DODGE:  {cost: 1, needsDir: false, allowsDiagonal: false, label: "Dodge"},
-  DISARM: {cost: 1, needsDir: false, allowsDiagonal: false, label: "Disarm"},
-  BOMB:   {cost: 2, needsDir: true,  allowsDiagonal: false, label: "Bomb / Break Wall"},
-  SCAN:      {cost: 2, needsDir: false, allowsDiagonal: false, label: "Scan Around"},
-  TRI_SCAN:  {cost: 1, needsDir: true,  allowsDiagonal: true,  label: "3-Grid Scan"},
-  AREA_SCAN: {cost: 2, needsDir: true,  allowsDiagonal: true,  label: "3×3 Scan"},
+  ATTACK: {cost: 1, needsDir: true,  allowsDiagonal: true, label: "Attack"},
+  DODGE:  {cost: 1, needsDir: true, allowsDiagonal: true, label: "Dodge"},
+  DISARM: {cost: 1, needsDir: true, allowsDiagonal: true, label: "Disarm"},
+  BOMB:   {cost: 1, needsDir: true, allowsDiagonal: false, label: "Plant Bomb"},
+  BREAK_WALL: {cost: 2, needsDir: true, allowsDiagonal: false, label: "Break Wall"},
+  SCAN:      {cost: 1, needsDir: false, allowsDiagonal: false, label: "Scan Here"},
+  TRI_SCAN:  {cost: 2, needsDir: true,  allowsDiagonal: true,  label: "3-Grid Scan"},
+  AREA_SCAN: {cost: 3, needsDir: true,  allowsDiagonal: true,  label: "3×3 Scan"},
   DISCARD:   {cost: 1, needsDir: false, allowsDiagonal: false, label: "Discard Remaining"},
 };
 
 // The same scan geometry is used for target validation, previews, and execution.
 // A null size means the surrounding scan may be clipped at the board edge.
 const SCAN_RULES = {
-  SCAN: {region: surroundingTiles, size: null, label: () => "surrounding"},
+  SCAN: {region: origin => [tileAt(origin.x, origin.y)], size: null, label: () => "current"},
   TRI_SCAN: {region: threeGridScanRegion, size: 3, name: "3-grid", label: dir => `${DIRS[dir].symbol} directional`},
   AREA_SCAN: {region: directionalScanRegion, size: 9, name: "3×3", label: dir => `${DIRS[dir].symbol} 3×3`},
 };
 
 const ACTION_HINTS = {
-  MOVE: "Choose a destination. Paths prefer straight steps, then diagonals, and route around walls and ridges.",
-  DISARM: "Disarm removes bombs in the eight surrounding grids when it resolves. No target is needed.",
-  BOMB: "Choose an adjacent wall to break, or a grid to plant a bomb (↑ ↓ ← →). Costs 2 points; ridges cannot be broken.",
-  SCAN: "Scan the eight surrounding grids, even around walls. No target is needed.",
-  TRI_SCAN: "Click an adjacent grid to aim the 3-grid scan. Walls do not block scans.",
-  AREA_SCAN: "Click an adjacent grid to aim the 3×3 scan. Walls do not block scans, including grids behind them.",
+  ATTACK: "Reach 2 grids straight or 1 diagonally; push 1 grid. A wall, ridge, or edge blocking the push deals 1 HP. Players block without damage.",
+  MOVE: "Choose a path. A step blocked by another player is skipped and spent; later programmed steps still execute from your actual position.",
+  DODGE: "Choose an adjacent escape grid. The next attack triggers a sidestep there. Blocked escape fails; bombs still trigger. One dodge, this round only.",
+  DISARM: "Choose one adjacent grid in any direction. Remove its bomb safely, or verify it is safe. Costs 1 point; no flags needed.",
+  BOMB: "Plant a bomb on an adjacent non-terrain grid (↑ ↓ ← →) for 1 point. Preserves visibility; cannot break walls.",
+  BREAK_WALL: "Destroy an adjacent wall (↑ ↓ ← →) for 2 points. Opens paths for later movement; ridges cannot be broken.",
+  SCAN: "Record a number on your current grid: bombs in its eight neighbors, excluding the center. The clue is a snapshot, not a live counter. Costs 1 point.",
+  TRI_SCAN: "Scan three grids for 2 points. Reveal bombs directly, without numbers. Other grids keep their visibility. Found initial bombs stay visible until removed.",
+  AREA_SCAN: "Aim a 3×3 patch of numbered clues for 3 points. Each counts its eight neighbors. Clues are snapshots; walls do not block counting.",
 };
 
 const ALLOCATION_LABELS = {
@@ -77,12 +88,18 @@ el("readyNextPlayerBtn").addEventListener("click", readyNextPlayer);
 el("resolveNextBtn").addEventListener("click", resolveNext);
 el("resolveAllBtn").addEventListener("click", resolveAll);
 el("rollDiceBtn").addEventListener("click", rollDice);
+el("beginPlanningBtn").addEventListener("click", DicePhase.startPlanning);
 el("undoActionBtn").addEventListener("click", undoLastAction);
 
 ["playerCount", "startingHp", "terrainCount", "ridgeCount", "bombPercent"].forEach(id => {
   el(id).addEventListener("input", updateSetupConfig);
 });
 el("terrainType").addEventListener("change", updateSetupConfig);
+el("playerCount").addEventListener("change", updateSetupConfig);
+el("humanCount").addEventListener("change", updateSetupConfig);
+el("botDifficulty").addEventListener("change", updateSetupConfig);
+el("turnOrderMode").addEventListener("change", updateSetupConfig);
+el("visibilityMode").addEventListener("change", updateSetupConfig);
 
 actionButtons.forEach(btn => {
   btn.addEventListener("click", () => chooseAction(btn.dataset.action));
@@ -106,9 +123,9 @@ function updateSetupConfig() {
   const startingHp = readIntegerInput("startingHp", DEFAULT_START_HP, 1, MAX_START_HP);
   el("startingHpValue").textContent = `${startingHp} HP`;
   const totalTiles = SIZE * SIZE;
-  const playerCount = readIntegerInput("playerCount", 3, 3, 6);
+  const playerCount = readIntegerInput("playerCount", 4, 3, 6);
   const terrainInput = el("terrainType");
-  const terrainType = ["wall", "ridge", "random"].includes(terrainInput.value) ? terrainInput.value : "random";
+  const terrainType = ["wall", "ridge", "random"].includes(terrainInput.value) ? terrainInput.value : "wall";
   terrainInput.value = terrainType;
   const wallInput = el("terrainCount");
   const ridgeInput = el("ridgeCount");
@@ -135,10 +152,14 @@ function updateSetupConfig() {
     `${wallCount} wall${wallCount === 1 ? "" : "s"} · ` +
     `${ridgeLines} long ridge${ridgeLines === 1 ? "" : "s"}`;
 
-  return {playerCount, startingHp, terrainType, wallCount, ridgeLines, bombPercent, bombCount};
+  const agents = GameAgents.setup(playerCount);
+  return {playerCount, startingHp, terrainType, wallCount, ridgeLines, bombPercent, bombCount,
+    ...agents, ...TurnOrder.setup(playerCount, agents.humanCount), ...GridVisibility.setup(), ...GameMutators.setup()};
 }
 
 function resetToSetup() {
+  DicePhase.cancel();
+  GameAgents.cancel();
   state = null;
   deniedTile = null;
   el("setupPanel").classList.remove("hidden");
@@ -146,6 +167,8 @@ function resetToSetup() {
 }
 
 function startGame() {
+  DicePhase.cancel();
+  GameAgents.cancel();
   const config = updateSetupConfig();
   const {playerCount: count, startingHp, wallCount, ridgeLines, bombCount} = config;
   const starts = [
@@ -158,15 +181,20 @@ function startGame() {
   ];
   state = {
     round: 1,
-    phase: "planning",
+    phase: "rolling",
+    rollingIndex: 0,
     planningIndex: 0,
+    awaitingHandoff: false,
     executionIndex: 0,
     allocationCounter: 0,
+    agentFailures: new Set(),
     config,
+    turnOrder: TurnOrder.resolve(config),
     queue: [],
     players: Array.from({length: count}, (_, i) => ({
       id: i + 1,
-      name: `Player ${i + 1}`,
+      name: i < config.humanCount ? `Player ${i + 1}` : `Bot ${i + 1}`,
+      controller: i < config.humanCount ? null : config.botDifficulty,
       x: starts[i].x,
       y: starts[i].y,
       hp: startingHp,
@@ -184,7 +212,7 @@ function startGame() {
   state.players.forEach(p => {
     const t = tileAt(p.x, p.y);
     t.type = "safe";
-    t.revealed = true;
+    GridVisibility.reveal(t);
   });
 
   placeLongRidges(ridgeLines);
@@ -193,8 +221,7 @@ function startGame() {
 
   el("setupPanel").classList.add("hidden");
   el("gamePanel").classList.remove("hidden");
-  beginPlanningForCurrent();
-  render();
+  DicePhase.begin();
 }
 
 function makeBoard() {
@@ -204,6 +231,11 @@ function makeBoard() {
     y: Math.floor(i / SIZE),
     type: "safe",
     revealed: false,
+    lastRevealedRound: null,
+    initialMine: false,
+    scannedInitialMine: false,
+    clueCount: null,
+    clueRound: null,
     exploded: false,
   }));
 }
@@ -272,6 +304,7 @@ function placeLongRidges(amount) {
 function placeMines(amount) {
   shuffledTiles(availablePlacementTiles()).slice(0, amount).forEach(tile => {
     tile.type = "mine";
+    tile.initialMine = true;
   });
 }
 
@@ -288,7 +321,7 @@ function isBlockingTerrain(tile) {
 }
 
 function livingPlayers() {
-  return state.players.filter(p => p.alive);
+  return TurnOrder.players().filter(p => p.alive);
 }
 
 function currentPlanner() {
@@ -304,17 +337,17 @@ function beginPlanningForCurrent() {
   const p = currentPlanner();
   if (!p) return;
   p.program = [];
-  p.roll = null;
-  p.pointsRemaining = 0;
+  p.pointsRemaining = p.roll;
   el("planningControls").classList.remove("hidden");
   el("passControls").classList.add("hidden");
   el("executionControls").classList.add("hidden");
   el("winnerControls").classList.add("hidden");
-  // The caller updates the round message and renders once after this transition.
+  GameAgents.begin(p);
+  // Human turns render in the caller; the agent bridge manages async bot turns.
 }
 
 function chooseAction(action) {
-  if (!state || state.phase !== "planning") return;
+  if (!GameAgents.humanTurn() || !ACTIONS[action]) return;
   const p = currentPlanner();
   if (!p || p.roll === null || ACTIONS[action].cost > p.pointsRemaining) return;
   selection = {action, dir: null, path: [], target: null};
@@ -343,19 +376,36 @@ function tileKey(x, y) {
   return `${x},${y}`;
 }
 
-function plannedPosition(p) {
+function planningPreview(p) {
   const position = {x: p.x, y: p.y};
+  const brokenWalls = new Set();
   p.program.forEach(item => {
-    if (item.action !== "MOVE") return;
     const dir = DIRS[item.dir];
-    position.x += dir.dx;
-    position.y += dir.dy;
+    if (!dir) return;
+    if (item.action === "MOVE") {
+      position.x += dir.dx;
+      position.y += dir.dy;
+    } else if (item.action === "BREAK_WALL") {
+      const x = position.x + dir.dx, y = position.y + dir.dy;
+      if (inBounds(x, y) && tileAt(x, y).type === "wall" && !tileAt(x, y).exploded) {
+        brokenWalls.add(tileKey(x, y));
+      }
+    }
   });
-  return position;
+  return {position, brokenWalls};
+}
+
+function plannedPosition(p) {
+  return planningPreview(p).position;
+}
+
+function isPlanningBlocked(tile, preview) {
+  return tile.type === "ridge" || (tile.type === "wall" && !preview.brokenWalls.has(tileKey(tile.x, tile.y)));
 }
 
 function movementPaths(p) {
-  const start = plannedPosition(p);
+  const preview = planningPreview(p);
+  const start = preview.position;
   const paths = new Map([[tileKey(start.x, start.y), []]]);
   const queue = [{...start, path: []}];
 
@@ -370,7 +420,7 @@ function movementPaths(p) {
       const x = current.x + dir.dx;
       const y = current.y + dir.dy;
       const key = tileKey(x, y);
-      if (!inBounds(x, y) || paths.has(key) || isBlockingTerrain(tileAt(x, y))) return;
+      if (!inBounds(x, y) || paths.has(key) || isPlanningBlocked(tileAt(x, y), preview)) return;
       const path = [...current.path, name];
       paths.set(key, path);
       queue.push({x, y, path});
@@ -382,6 +432,20 @@ function movementPaths(p) {
 
 function directionFromDelta(dx, dy) {
   return Object.keys(DIRS).find(name => DIRS[name].dx === dx && DIRS[name].dy === dy) || null;
+}
+
+function attackRegion(origin, dirName, preview = null) {
+  const dir = DIRS[dirName];
+  if (!dir) return [];
+  const region = [];
+  for (let step = 1; step <= (dir.diagonal ? 1 : 2); step++) {
+    const x = origin.x + dir.dx * step, y = origin.y + dir.dy * step;
+    if (!inBounds(x, y)) break;
+    const tile = tileAt(x, y);
+    if (preview ? isPlanningBlocked(tile, preview) : isBlockingTerrain(tile)) break;
+    region.push(tile);
+  }
+  return region;
 }
 
 function directionalScanRegion(origin, dirName) {
@@ -423,7 +487,7 @@ function threeGridScanRegion(origin, dirName) {
 }
 
 function selectBoardTile(tile) {
-  if (!state || state.phase !== "planning") return;
+  if (!GameAgents.humanTurn()) return;
   const p = currentPlanner();
   if (p && p.pointsRemaining <= 0) return;
   if (!p || p.roll === null) {
@@ -455,10 +519,13 @@ function selectBoardTile(tile) {
 
   const dx = tile.x - origin.x;
   const dy = tile.y - origin.y;
-  const dir = directionFromDelta(dx, dy);
+  const dir = action === "ATTACK"
+    ? directionFromDelta(Math.sign(dx), Math.sign(dy)) : directionFromDelta(dx, dy);
   const blockedTarget =
-    (action === "ATTACK" && isBlockingTerrain(tile)) ||
-    (action === "BOMB" && tile.type === "ridge") ||
+    (["DODGE", "DISARM"].includes(action) && isPlanningBlocked(tile, planningPreview(p))) ||
+    (action === "ATTACK" && !attackRegion(origin, dir, planningPreview(p)).includes(tile)) ||
+    (action === "BREAK_WALL" && tile.type !== "wall") ||
+    (action === "BOMB" && isBlockingTerrain(tile)) ||
     (action === "BOMB" && tile.exploded);
   const scan = SCAN_RULES[action];
   const invalidScan = scan && scan.size !== null && scan.region(origin, dir).length !== scan.size;
@@ -491,16 +558,11 @@ function denyBoardTile(tile, message) {
 }
 
 function rollDice() {
-  if (!state || state.phase !== "planning") return;
-  const p = currentPlanner();
-  if (!p || p.roll !== null) return;
-  p.roll = Math.floor(Math.random() * MAX_ACTION_POINTS) + 1;
-  p.pointsRemaining = p.roll;
-  state.log = `${p.name} rolled ${p.roll}. Secretly allocate all ${p.roll} action points.`;
-  render();
+  DicePhase.roll();
 }
 
 function canAddSelection() {
+  if (!GameAgents.humanTurn()) return false;
   const p = currentPlanner();
   if (!p || p.roll === null) return false;
   if (!selection.action) return false;
@@ -523,15 +585,13 @@ function selectionCost() {
 function updatePlanningUI() {
   if (!state || state.phase !== "planning") return;
   const p = currentPlanner();
-  if (!p) return;
+  if (!p || GameAgents.isBot(p)) return;
 
   actionButtons.forEach(btn => {
     btn.disabled = p.roll === null || ACTIONS[btn.dataset.action].cost > p.pointsRemaining;
     btn.classList.toggle("selected", btn.dataset.action === selection.action);
   });
   el("diceFace").textContent = p.roll === null ? "—" : diceSymbol(p.roll);
-  el("rollDiceBtn").disabled = p.roll !== null;
-  el("rollDiceBtn").textContent = p.roll === null ? "Roll d6" : `Rolled ${p.roll}`;
   el("diceHint").textContent = p.roll === null
     ? "Roll before selecting any actions."
     : `${p.pointsRemaining} of ${p.roll} action point${p.roll === 1 ? "" : "s"} remaining.`;
@@ -614,7 +674,7 @@ function allocationType(action) {
   if (SCAN_RULES[action]) return "scan";
   if (action === "ATTACK") return "attack";
   if (action === "DODGE" || action === "DISARM") return "dodge";
-  if (action === "BOMB") return "bomb";
+  if (action === "BOMB" || action === "BREAK_WALL") return "bomb";
   return "discard";
 }
 
@@ -681,6 +741,7 @@ function confirmProgram() {
   }
 
   state.log = `${p.name} has secretly allocated all action points.`;
+  if (GameAgents.humanFinished()) return;
   el("planningControls").classList.add("hidden");
   el("passControls").classList.remove("hidden");
 
@@ -696,7 +757,7 @@ function confirmProgram() {
 }
 
 function undoLastAction() {
-  if (!state || state.phase !== "planning") return;
+  if (!GameAgents.humanTurn()) return;
   const p = currentPlanner();
   if (!p || p.program.length === 0) return;
   const allocationId = p.program[p.program.length - 1].allocationId;
@@ -712,11 +773,13 @@ function undoLastAction() {
 }
 
 function readyNextPlayer() {
+  if (GameAgents.ready()) return;
+  if (!GameAgents.humanTurn() || !currentPlanner() || currentPlanner().roll === null || currentPlanner().pointsRemaining > 0) return;
   const living = livingPlayers();
   if (state.planningIndex < living.length - 1) {
     state.planningIndex++;
+    state.log = `${currentPlanner().name}: privately program your ${currentPlanner().roll} points.`;
     beginPlanningForCurrent();
-    state.log = `${currentPlanner().name}: roll for action points.`;
     render();
   } else {
     beginExecution();
@@ -726,6 +789,7 @@ function readyNextPlayer() {
 // Execution is step-major: every living player's first item, then every second
 // item, and so on. Queue entries stay hidden until that exact item resolves.
 function beginExecution() {
+  el("botControls").classList.add("hidden");
   state.phase = "execution";
   state.executionIndex = 0;
   state.players.forEach(p => p.dodge = false);
@@ -751,6 +815,12 @@ function beginExecution() {
   el("passControls").classList.add("hidden");
   el("executionControls").classList.remove("hidden");
   state.log = "Execution phase started.";
+  if (state.agentFailures.size) {
+    state.log += " A bot could not finish planning; its unused points were discarded.";
+  }
+  if (!livingPlayers().some(p => !GameAgents.isBot(p))) {
+    state.log += " All humans are eliminated. Resolve actions to watch the remaining bots, or start a New Game.";
+  }
   render();
 }
 
@@ -840,23 +910,13 @@ function executeAction(p, item) {
   }
 
   if (action === "DODGE") {
-    p.dodge = true;
-    state.log = `${p.name} prepares to dodge the next attack this round.`;
+    p.dodge = item.dir;
+    state.log = `${p.name} prepares a ${dir.symbol} sidestep for the next attack this round. It replaces any earlier dodge.`;
     return;
   }
 
   if (action === "DISARM") {
-    let removed = 0;
-    surroundingTiles(p).forEach(tile => {
-      if (tile.type !== "mine") return;
-      tile.type = "safe";
-      tile.revealed = true;
-      tile.exploded = false;
-      removed++;
-    });
-    state.log = removed
-      ? `${p.name} disarms ${removed} surrounding bomb${removed === 1 ? "" : "s"}.`
-      : `${p.name} disarms the surrounding grids, but finds no bombs.`;
+    GameRules.disarm(p, item.dir);
     return;
   }
 
@@ -867,59 +927,40 @@ function executeAction(p, item) {
       state.log = `${p.name}'s ${scan.name} scan extends beyond the board, so nothing is revealed.`;
       return;
     }
-    revealScanRegion(p, region, scan.label(item.dir));
+    if (action === "TRI_SCAN") GameRules.revealBombs(p, region);
+    else revealScanRegion(p, region, scan.label(item.dir));
     return;
   }
 
-  if (action === "BOMB") {
+  if (action === "BOMB" || action === "BREAK_WALL") {
     const tx = p.x + dir.dx;
     const ty = p.y + dir.dy;
     if (!inBounds(tx, ty)) {
-      state.log = `${p.name} cannot place a bomb outside the board.`;
+      state.log = `${p.name}'s ${ACTIONS[action].label.toLowerCase()} target is outside the board.`;
       return;
     }
     const t = tileAt(tx, ty);
     const occupied = state.players.some(x => x.alive && x.x === tx && x.y === ty);
-    if (t.type === "ridge" || occupied || t.exploded) {
-      state.log = `${p.name} cannot place a bomb there.`;
+    if (occupied || t.exploded || (action === "BOMB" ? isBlockingTerrain(t) : t.type !== "wall")) {
+      state.log = `${p.name} cannot ${action === "BOMB" ? "plant a bomb" : "break a wall"} there.`;
       return;
     }
-    if (t.type === "wall") {
+    if (action === "BREAK_WALL") {
       t.type = "safe";
-      t.revealed = true;
+      GridVisibility.reveal(t);
       t.exploded = true;
       state.log = `${p.name} detonates and destroys a wall ${DIRS[item.dir].symbol}.`;
       return;
     }
     t.type = "mine";
-    t.revealed = false;
-    state.log = `${p.name} secretly places a bomb ${DIRS[item.dir].symbol}.`;
+    // An existing initial mine keeps its identity and any scan highlight.
+    // Planting changes contents only: preserve knowledge and its original timer.
+    state.log = `${p.name} places a bomb ${DIRS[item.dir].symbol}.`;
     return;
   }
 
   if (action === "ATTACK") {
-    const tx = p.x + dir.dx;
-    const ty = p.y + dir.dy;
-    const target = state.players.find(x => x.alive && x.id !== p.id && x.x === tx && x.y === ty);
-    if (!target) {
-      state.log = `${p.name} attacks ${DIRS[item.dir].symbol}, but nobody is there.`;
-      return;
-    }
-    if (target.dodge) {
-      target.dodge = false;
-      state.log = `${target.name} dodges ${p.name}'s attack.`;
-      return;
-    }
-    const px = target.x + dir.dx;
-    const py = target.y + dir.dy;
-    if (!canEnter(px, py, target.id)) {
-      state.log = `${p.name} attacks ${target.name}, but the push is blocked.`;
-      return;
-    }
-    target.x = px;
-    target.y = py;
-    state.log = `${p.name} pushes ${target.name} ${DIRS[item.dir].symbol}.`;
-    triggerTile(target);
+    GameRules.attack(p, item.dir);
     return;
   }
 
@@ -929,19 +970,7 @@ function executeAction(p, item) {
 }
 
 function revealScanRegion(p, region, label) {
-  // Scans reveal their full geometric footprint; terrain does not block sight.
-  const found = {mine: 0, wall: 0, ridge: 0, safe: 0};
-  region.forEach(tile => {
-    tile.revealed = true;
-    found[tile.type]++;
-  });
-
-  const discoveries = [];
-  if (found.mine) discoveries.push(`${found.mine} mine${found.mine === 1 ? "" : "s"}`);
-  if (found.wall) discoveries.push(`${found.wall} wall${found.wall === 1 ? "" : "s"}`);
-  if (found.ridge) discoveries.push(`${found.ridge} ridge${found.ridge === 1 ? "" : "s"}`);
-  discoveries.push(`${found.safe} safe`);
-  state.log = `${p.name} scans ${region.length} ${label} grid${region.length === 1 ? "" : "s"}: ${discoveries.join(", ")}.`;
+  GameRules.scan(p, region);
 }
 
 function canEnter(x, y, movingPlayerId) {
@@ -953,11 +982,16 @@ function canEnter(x, y, movingPlayerId) {
 
 function moveSteps(p, dir, steps, successText) {
   let moved = 0;
+  let blockage = "terrain or the board edge";
   const tileEvents = [];
   for (let i = 0; i < steps; i++) {
     const nx = p.x + dir.dx;
     const ny = p.y + dir.dy;
-    if (!canEnter(nx, ny, p.id)) break;
+    if (!canEnter(nx, ny, p.id)) {
+      const blocker = state.players.find(other => other.alive && other.id !== p.id && other.x === nx && other.y === ny);
+      if (blocker) blockage = blocker.name;
+      break;
+    }
     p.x = nx;
     p.y = ny;
     moved++;
@@ -967,7 +1001,7 @@ function moveSteps(p, dir, steps, successText) {
   }
 
   let movementLog;
-  if (moved === 0) movementLog = `${p.name}'s movement is blocked.`;
+  if (moved === 0) movementLog = `${p.name}'s movement is blocked by ${blockage} and skipped. The point is spent; later programmed actions continue.`;
   else if (moved < steps) movementLog = `${successText} Movement stops after ${moved} grid${moved === 1 ? "" : "s"}.`;
   else movementLog = successText;
   state.log = [movementLog, ...tileEvents].join(" ");
@@ -978,19 +1012,17 @@ function triggerTile(p) {
   const t = tileAt(p.x, p.y);
 
   if (t.type === "mine") {
-    t.revealed = true;
+    GridVisibility.reveal(t);
     t.exploded = true;
+    t.explosionRound = state.round;
     t.type = "safe";
-    p.hp -= 1;
-    state.log = `${p.name} triggers a mine and loses 1 HP!`;
-
-    if (p.hp <= 0) {
-      p.alive = false;
-      state.log += ` ${p.name} is eliminated.`;
-    }
+    t.initialMine = t.scannedInitialMine = false;
+    const lethal = GameRules.suddenDeath();
+    state.log = `${p.name} triggers a mine${lethal ? " during Sudden Death: instant death!" : " and loses 1 HP!"}`
+      + GameRules.damage(p, lethal ? p.hp : 1);
     return state.log;
   } else {
-    t.revealed = true;
+    GridVisibility.reveal(t);
   }
   return "";
 }
@@ -1000,10 +1032,22 @@ function finishRound() {
   if (checkWinner()) return;
 
   state.round++;
-  state.phase = "planning";
+  GridVisibility.expire();
+  // A triggered mine stays marked for the rest of its round, then becomes a
+  // safe grid whose visibility follows the selected mode. Wall-demolition
+  // craters have no explosion expiry stamp but still follow visibility rules.
+  state.board.forEach(tile => {
+    if (Number.isInteger(tile.explosionRound) && tile.explosionRound < state.round) {
+      tile.exploded = false;
+      delete tile.explosionRound;
+    }
+  });
+  state.phase = "rolling";
   state.planningIndex = 0;
+  state.awaitingHandoff = false;
   state.executionIndex = 0;
   state.allocationCounter = 0;
+  state.agentFailures.clear();
   state.queue = [];
   deniedTile = null;
   state.players.forEach(p => {
@@ -1014,29 +1058,24 @@ function finishRound() {
   });
 
   el("resolveNextBtn").textContent = "Resolve Next Action";
-  state.log = `Round ${state.round} begins.`;
-  beginPlanningForCurrent();
-  render();
+  DicePhase.begin();
 }
 
 function checkWinner() {
-  const living = livingPlayers();
-  if (living.length <= 1) {
+  const result = GameMutators.get(state.config.mutatorId).getResult(state);
+  if (result) {
     state.phase = "winner";
+    DicePhase.cancel();
+    GameAgents.cancel();
+    el("botControls").classList.add("hidden");
     el("planningControls").classList.add("hidden");
     el("passControls").classList.add("hidden");
     el("executionControls").classList.add("hidden");
     el("winnerControls").classList.remove("hidden");
 
-    if (living.length === 1) {
-      el("winnerTitle").textContent = `${living[0].name} Wins!`;
-      el("winnerText").textContent = `Last survivor after ${state.round} round${state.round === 1 ? "" : "s"}.`;
-      state.log = `${living[0].name} is the last survivor.`;
-    } else {
-      el("winnerTitle").textContent = "No Survivors";
-      el("winnerText").textContent = "Everybody was eliminated.";
-      state.log = "No players survived.";
-    }
+    el("winnerTitle").textContent = result.title;
+    el("winnerText").textContent = result.text;
+    state.log = result.log;
     render();
     return true;
   }
@@ -1054,6 +1093,7 @@ function diceSymbol(value) {
 
 function activePlayer() {
   if (!state) return null;
+  if (state.phase === "rolling") return DicePhase.current();
   if (state.phase === "planning") return currentPlanner();
   if (state.phase === "execution") {
     const item = state.queue[state.executionIndex];
@@ -1078,7 +1118,7 @@ function render() {
   if (!state) return;
   el("roundLabel").textContent = state.round;
   el("phaseLabel").textContent =
-    state.phase === "planning" ? "Planning" :
+    state.phase === "rolling" ? "Dice Rolls" : state.phase === "planning" ? "Planning" :
     state.phase === "execution" ? "Execution" : "Finished";
 
   el("currentPlayerLabel").textContent = activePlayer()?.name || "—";
@@ -1086,10 +1126,17 @@ function render() {
   el("bombStats").textContent =
     `${bombs.remaining} bomb${bombs.remaining === 1 ? "" : "s"} / ${bombs.found} found`;
   el("message").textContent = state.log;
+  el("pressureHint").textContent = GameRules.suddenDeath()
+    ? "SUDDEN DEATH: bombs kill instantly. Blocked-push damage remains 1 HP."
+    : `Sudden Death begins in round ${GameRules.suddenDeathRound} (${GameRules.suddenDeathRound - state.round} rounds away): bombs become lethal.`;
+  el("pressureHint").classList.toggle("sudden-death", GameRules.suddenDeath());
 
   renderPlayers();
   renderBoard();
   renderQueue();
+  TurnOrder.render();
+  ExecutionView.render();
+  DicePhase.render();
 
   if (state.phase === "planning") updatePlanningUI();
 }
@@ -1097,7 +1144,7 @@ function render() {
 function renderPlayers() {
   el("playerList").innerHTML = "";
   const activeId = activePlayer()?.id;
-  state.players.forEach(p => {
+  TurnOrder.players().forEach(p => {
     const isActive = p.alive && p.id === activeId;
     const showHearts = p.alive && p.hp < 5;
     const healthLabel = p.alive ? `${p.hp} of ${state.config.startingHp} HP` : "Eliminated";
@@ -1112,6 +1159,12 @@ function renderPlayers() {
       </span>
       <span class="hp${showHearts ? " hearts" : ""}" role="img" aria-label="${healthLabel}" title="${healthLabel}">${healthDisplay}</span>
     `;
+    if (GameAgents.isBot(p)) {
+      const badge = document.createElement("small");
+      badge.className = "bot-badge";
+      badge.textContent = MinefieldAgents.get(p.controller)?.label || "Agent";
+      card.appendChild(badge);
+    }
     el("playerList").appendChild(card);
   });
 }
@@ -1143,7 +1196,7 @@ function renderBoard() {
   }
 
   const planner = state.phase === "planning" ? currentPlanner() : null;
-  const planningActive = planner && planner.roll !== null && planner.pointsRemaining > 0;
+  const planningActive = planner && !GameAgents.isBot(planner) && planner.roll !== null && planner.pointsRemaining > 0;
   const previewPosition = planningActive ? plannedPosition(planner) : null;
   const reachable = planningActive && (!selection.action || selection.action === "MOVE")
     ? movementPaths(planner)
@@ -1156,8 +1209,8 @@ function renderBoard() {
       : []
   );
   const disarmRegion = new Set(
-    planningActive && selection.action === "DISARM"
-      ? surroundingTiles(previewPosition).map(tile => tileKey(tile.x, tile.y))
+    planningActive && selection.action === "DISARM" && selection.target
+      ? [tileKey(selection.target.x, selection.target.y)]
       : []
   );
 
@@ -1184,12 +1237,16 @@ function renderBoard() {
     } else if (t.type === "ridge") {
       cell.classList.add("ridge");
       cell.textContent = "▲";
-    } else if (t.exploded) {
+    } else if (t.revealed && t.exploded) {
       cell.classList.add("exploded");
       cell.textContent = "✹";
     } else if (t.revealed && t.type === "mine") {
       cell.classList.add("mine");
       cell.textContent = "◆";
+      if (t.scannedInitialMine) {
+        cell.classList.add("found-mine");
+        cell.title = "Scanned initial bomb — stays visible until disarmed or triggered";
+      }
     } else if (t.revealed) {
       cell.classList.add("safe");
       cell.textContent = "";
@@ -1198,7 +1255,7 @@ function renderBoard() {
     const path = reachable ? reachable.get(key) : null;
     if (path && path.length > 0) {
       cell.classList.add("move-reachable");
-      cell.title = `Reachable in ${path.length} point${path.length === 1 ? "" : "s"}`;
+      cell.title += `${cell.title ? "; " : ""}Reachable in ${path.length} point${path.length === 1 ? "" : "s"}`;
     }
     if (selectedPath.has(key)) cell.classList.add("planned-path");
     if (scanRegion.has(key)) cell.classList.add("scan-region");
@@ -1207,6 +1264,15 @@ function renderBoard() {
       cell.classList.add("selected-target");
     }
     if (deniedTile && deniedTile.key === key) cell.classList.add("denied-target");
+
+    if (Number.isInteger(t.clueCount)) {
+      const clue = document.createElement("span");
+      clue.className = `scan-clue clue-${t.clueCount}`;
+      clue.textContent = String(t.clueCount);
+      clue.title = `Round ${t.clueRound}: ${t.clueCount} bombs in the eight neighboring grids. Snapshot; this grid is not necessarily safe.`;
+      cell.title += `${cell.title ? "; " : ""}${clue.title}`;
+      cell.appendChild(clue);
+    }
 
     const playersHere = playersByTile.get(key);
     if (playersHere) {
@@ -1247,6 +1313,10 @@ function renderQueue() {
     const p = state.players.find(x => x.id === item.playerId);
     const row = document.createElement("div");
     row.className = "queue-item done";
+    const category = allocationType(item.action);
+    if (category !== "move" && category !== "discard") {
+      row.className += ` action-colored log-${category}`;
+    }
     if (item.eventType) row.classList.add(item.eventType);
     row.textContent =
       `Step ${item.step + 1} · ${p ? p.name : "Player"} · ${formatAction(item)}` +
