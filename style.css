@@ -81,6 +81,18 @@ h1 { margin-bottom: 4px; font-size: clamp(28px, 4vw, 42px); }
 }
 
 .setup-hint { color: #9ea8bb; font-size: 13px; }
+.mutators { margin: 20px 0; padding: 0; border: 0; min-width: 0; }
+.mutators legend { padding: 0; margin-bottom: 10px; font-size: 18px; font-weight: 700; }
+.mutator-list { display: grid; gap: 8px; }
+.setup-panel .mutator-option { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 14px; border: 1px solid #3b4354; border-radius: 10px; cursor: pointer; background: #12161e; }
+.mutator-option input { margin: 3px 0 0; accent-color: #8da8ff; flex-shrink: 0; }
+.mutator-option:has(input:checked) { border-color: #8da8ff; background: #202a40; }
+.mutator-option:focus-within { outline: 2px solid #8da8ff; outline-offset: 3px; }
+.mutator-title { display: block; font-size: 15px; font-weight: 800; line-height: 1.3; }
+.mutator-description { display: block; margin-top: 6px; color: #b9c1d1; font-size: 13px; line-height: 1.4; }
+.turn-order-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.turn-order-options label { margin: 6px 0; }
+.turn-order-options select { width: 100%; min-width: 0; }
 
 select {
   padding: 10px;
@@ -123,29 +135,32 @@ output {
 /* Public round information, player health, and the desktop three-column layout. */
 .info-sidebar {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   position: sticky;
   top: 12px;
   min-width: 0;
 }
 
-.status-panel, .player-panel, .board-panel, .control-panel { padding: 16px; }
+.status-panel, .player-panel, .control-panel { padding: 12px; }
+.board-panel { padding: 16px; }
 .status-panel h2, .player-panel h2 { margin-bottom: 12px; font-size: 18px; }
 
 .status-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .status-row > div {
   background: #12161e;
   border: 1px solid #2b3342;
-  padding: 12px;
+  padding: 8px;
   border-radius: 12px;
 }
 
-.bomb-count { font-size: 14px; font-variant-numeric: tabular-nums; }
+.bomb-count { font-size: 12px; font-variant-numeric: tabular-nums; }
+.status-panel .label { font-size: 10px; }
+.status-panel .message { padding: 8px; font-size: 12px; line-height: 1.35; margin-top: 8px; }
 
 .label {
   display: block;
@@ -167,23 +182,29 @@ output {
 
 #playerList {
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
+
+.round-dice { display: grid; gap: 4px; margin: 0 0 10px; }
+.round-die { display: grid; justify-items: center; gap: 4px; padding: 3px 0; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.round-die-cube.allocation-cell { min-width: 0; width: 28px; height: 28px; font-size: 17px; }
+.round-die.rolling-player { outline: 2px solid #56a3ff; background: #1a3048; }
 
 .player-card {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   background: #12161e;
   border: 1px solid #2b3342;
   border-radius: 10px;
-  padding: 9px 10px;
+  padding: 6px 8px;
 }
 
 .player-card.dead { opacity: .45; text-decoration: line-through; }
 .player-card.active { border-color: #8da8ff; }
+.bot-badge { flex-basis: 100%; color: #b9c8e8; font-size: 11px; overflow-wrap: anywhere; }
 .player-identity { display: inline-flex; align-items: center; gap: 7px; }
 .player-name { font-weight: 800; }
 .hp { white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -305,6 +326,38 @@ output {
 
 .tile.safe { background: #bfc7d3; color: #20252d; }
 .tile.mine { background: #7f3740; color: #fff; }
+.tile.mine.found-mine {
+  background: #a43d38;
+  color: #ffe190;
+  border: 2px solid #ffd166;
+}
+.found-mine-legend { color: #ffd166; }
+.scan-clue {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 3;
+  min-width: 18px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: #101b30;
+  color: #cce2ff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.pressure-hint { font-size: 12px; color: #ffd29a; }
+.pressure-hint.sudden-death { color: #ffabb1; font-weight: 800; border-left: 3px solid #d75c65; padding-left: 8px; }
+.scan-clue.clue-0 { color: #aeb6c7; }
+.scan-clue.clue-1 { color: #8dbaff; }
+.scan-clue.clue-2 { color: #9be2b2; }
+.scan-clue.clue-3 { color: #ffabb1; }
+.scan-clue.clue-4 { color: #c1a9ff; }
+.scan-clue.clue-5, .scan-clue.clue-6, .scan-clue.clue-7, .scan-clue.clue-8 { color: #ffd166; }
+.rules-help { margin-top: 10px; font-size: 12px; line-height: 1.5; color: #cbd4e3; }
+.rules-help summary { cursor: pointer; color: #a9c9ff; }
+.rules-help ul { padding-left: 18px; }
+.rules-help li { margin-bottom: 8px; }
 .tile.exploded { background: #4f252a; color: #fff; }
 .tile.wall { background: #1d222b; color: #dce1ea; border: 1px solid #727c91; }
 .tile.ridge { background: #3e3528; color: #f0d19a; border: 1px solid #8a7450; }
@@ -569,6 +622,34 @@ output {
   overflow: auto;
 }
 
+/* Compact allocation-style cubes stay in the normal control panel. */
+.execution-cube-hint { font-size: 12px; color: #aeb6c7; }
+.execution-cubes { overflow-x: auto; padding: 3px; }
+.execution-cube-table { width: max-content; border-collapse: separate; border-spacing: 0; }
+.execution-cube-table caption { text-align: left; color: #aeb6c7; font-size: 12px; margin-bottom: 8px; }
+.execution-cube-table th, .execution-cube-table td { width: 44px; text-align: center; border-left: 2px solid transparent; border-right: 2px solid transparent; }
+.execution-player { padding: 5px 3px; border-top: 2px solid transparent; }
+.execution-player span { display: block; font-size: 14px; }
+.execution-player small { display: block; margin-top: 3px; font-size: 10px; font-weight: 400; color: #cad4e5; }
+.execution-point { padding: 3px; }
+.execution-cube.allocation-cell { width: 32px; height: 32px; min-width: 32px; transform: none; }
+.execution-point.last-point { border-bottom: 2px solid transparent; }
+.execution-point.hp-loss .execution-cube { box-shadow: 0 0 0 2px #e99245; }
+.execution-point.eliminated .execution-cube { box-shadow: 0 0 0 2px #ef6570; }
+.execution-cube-table .executing-player { border-left-color: #56a3ff; border-right-color: #56a3ff; animation: execution-blink 1.2s ease-in-out infinite; }
+.execution-cube-table th.executing-player { border-top-color: #56a3ff; }
+.execution-cube-table .last-point.executing-player { border-bottom-color: #56a3ff; }
+.execution-progress { margin: 10px 3px 3px; font-size: 12px; color: #b9d8ff; }
+.execution-log { margin-top: 18px; }
+.execution-log summary { cursor: pointer; color: #b9c8e8; }
+@keyframes execution-blink {
+  0%, 100% { border-left-color: #56a3ff; border-right-color: #56a3ff; }
+  50% { border-left-color: #224875; border-right-color: #224875; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .execution-cube-table .executing-player { animation: none; }
+}
+
 .queue-item {
   padding: 8px 10px;
   border-radius: 8px;
@@ -580,6 +661,18 @@ output {
 .queue-item.done { opacity: .42; text-decoration: line-through; }
 .queue-item.current { outline: 2px solid #8da8ff; }
 
+.queue-item.log-scan { --log-accent: #73d69a; --log-background: #183327; }
+.queue-item.log-attack { --log-accent: #ffc488; --log-background: #382719; }
+.queue-item.log-dodge { --log-accent: #8dbaff; --log-background: #1c2a42; }
+.queue-item.log-bomb { --log-accent: #ff9ba3; --log-background: #3b2028; }
+.queue-item.done.action-colored {
+  opacity: 1;
+  text-decoration: none;
+  border-left: 3px solid var(--log-accent);
+  background: var(--log-background);
+  color: var(--log-accent);
+}
+
 .queue-item.done.hp-loss,
 .queue-item.done.eliminated {
   opacity: 1;
@@ -587,7 +680,7 @@ output {
   font-weight: 800;
 }
 
-.queue-item.hp-loss {
+.queue-item.done.hp-loss {
   background: #5a321d;
   border-color: #e99245;
   color: #ffd3ad;
@@ -595,7 +688,7 @@ output {
   animation: event-highlight .45s ease both;
 }
 
-.queue-item.eliminated {
+.queue-item.done.eliminated {
   background: #5a2026;
   border-color: #ef6570;
   color: #ffd3d6;
@@ -619,6 +712,7 @@ output {
   padding: 30px 8px;
 }
 
+#diceControls button,
 #executionControls button,
 #winnerControls button {
   width: 100%;

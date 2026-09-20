@@ -20,19 +20,65 @@
     <section id="setupPanel" class="panel setup-panel">
       <h2>Local Game Setup</h2>
       <p>Configure the players, starting health, terrain, and hidden bomb density before generating the map.</p>
+      <fieldset class="mutators">
+        <legend>Mutators</legend>
+        <div id="mutatorList" class="mutator-list"></div>
+      </fieldset>
       <label>
         Players
         <select id="playerCount">
           <option value="3">3 Players</option>
-          <option value="4">4 Players</option>
+          <option value="4" selected>4 Players</option>
           <option value="5">5 Players</option>
           <option value="6">6 Players</option>
         </select>
       </label>
 
       <label>
-        <span>Starting Health <output id="startingHpValue" for="startingHp">3 HP</output></span>
-        <input id="startingHp" type="range" min="1" max="10" step="1" value="3" aria-describedby="startingHpHint" />
+        Human players
+        <select id="humanCount" aria-describedby="botSetupHint">
+          <option value="all">All players (pass-and-play)</option>
+          <option value="1" selected>1 human — play solo</option>
+          <option value="2">2 humans</option>
+          <option value="3">3 humans</option>
+          <option value="4">4 humans</option>
+          <option value="5">5 humans</option>
+        </select>
+        <span id="botSetupHint" class="setup-hint">Humans take the first seats; bots fill the remaining seats.</span>
+      </label>
+      <label>
+        Bot difficulty
+        <select id="botDifficulty" aria-describedby="botDifficultyHint">
+          <option value="new-player">New Player</option>
+          <option value="moderate" selected>Moderate</option>
+          <option value="expert">Expert</option>
+        </select>
+        <span id="botDifficultyHint" class="setup-hint"></span>
+      </label>
+
+      <label>
+        Playing sequence
+        <select id="turnOrderMode" aria-describedby="turnOrderHint">
+          <option value="manual">Designated order</option>
+          <option value="random" selected>Random order</option>
+        </select>
+        <span id="turnOrderHint" class="setup-hint">The order is shuffled once when the game starts and kept for the whole match. See the playing order in the Players panel.</span>
+      </label>
+      <div id="manualTurnOrder" class="turn-order-options hidden"></div>
+
+      <label>
+        Grid visibility
+        <select id="visibilityMode" aria-describedby="visibilityHint">
+          <option value="clear">Clear — explored grids stay known</option>
+          <option value="default" selected>Default — unknown after 2 rounds</option>
+          <option value="hard">Hard — unknown after 1 round</option>
+        </select>
+        <span id="visibilityHint" class="setup-hint"></span>
+      </label>
+
+      <label>
+        <span>Starting Health <output id="startingHpValue" for="startingHp">5 HP</output></span>
+        <input id="startingHp" type="range" min="1" max="10" step="1" value="5" aria-describedby="startingHpHint" />
         <span id="startingHpHint" class="setup-hint">Applies to every player (1–10 HP).</span>
       </label>
 
@@ -41,14 +87,14 @@
           Terrain Type
           <select id="terrainType">
             <option value="random">Random Mix</option>
-            <option value="wall">Walls</option>
+            <option value="wall" selected>Walls</option>
             <option value="ridge">Ridges</option>
           </select>
         </label>
 
         <label>
-          <span>Wall Tiles <output id="terrainCountValue">12</output></span>
-          <input id="terrainCount" type="range" min="0" max="20" value="12" />
+          <span>Wall Tiles <output id="terrainCountValue">16</output></span>
+          <input id="terrainCount" type="range" min="0" max="20" value="16" />
         </label>
 
         <label>
@@ -57,16 +103,16 @@
         </label>
 
         <label>
-          <span>Bomb Density <output id="bombPercentValue">25%</output></span>
-          <input id="bombPercent" type="range" min="3" max="89" value="25" />
+          <span>Bomb Density <output id="bombPercentValue">20%</output></span>
+          <input id="bombPercent" type="range" min="3" max="80" value="20" />
         </label>
       </div>
-      <p id="mapSummary" class="map-summary">25 hidden bombs · 12 walls · 1 long ridge</p>
+      <p id="mapSummary" class="map-summary">20 hidden bombs · 16 walls · 0 long ridges</p>
       <button id="startGameBtn">Start Game</button>
     </section>
 
     <section id="gamePanel" class="hidden">
-      <div class="main-grid">
+      <div id="mainGrid" class="main-grid">
         <!-- Public information stays visible throughout planning and execution. -->
         <aside class="info-sidebar" aria-label="Round details and player health">
           <section class="panel status-panel" aria-labelledby="roundDetailsHeading">
@@ -81,10 +127,26 @@
               </div>
             </div>
             <div id="message" class="message">Roll for action points, then build your program.</div>
+            <p id="pressureHint" class="pressure-hint" role="status"></p>
+            <details class="rules-help">
+              <summary>Rules &amp; explanations</summary>
+              <ul>
+                <li>Move: a step blocked by another player is skipped. Its point is spent; later steps continue from your actual position.</li>
+                <li>Attack: reach 2 grids straight or 1 diagonally and push 1 grid. A wall, ridge, or edge blocking the push causes 1 HP damage. Another player blocks without damage.</li>
+                <li>Dodge: choose an adjacent escape direction. The next attack triggers one sidestep. A blocked destination makes it fail; landing on a bomb still triggers it. Dodges expire each round and do not stack.</li>
+                <li>Scan Here: for 1 point, record the bomb count in the eight grids around you. Larger scans record a count at each scanned grid. A number does not prove its own grid safe.</li>
+                <li>Clues are dated snapshots. Planting, disarming, and explosions do not update them. Rescan to refresh; clues expire with the selected visibility mode.</li>
+                <li>Disarm: spend 1 point to check one adjacent grid, including diagonals, and safely remove its bomb. No flags are needed.</li>
+                <li>From round 21, bombs cause instant death. Blocked-push damage stays at 1 HP.</li>
+                <li>The last survivor wins. If no bombs remain, the living player with the highest HP wins; tied leaders share victory. This is checked after each action.</li>
+              </ul>
+            </details>
           </section>
 
           <section class="panel player-panel" aria-labelledby="playersHeading">
             <h2 id="playersHeading">Players</h2>
+            <div id="roundDice" class="round-dice" role="group" aria-label="Public dice points in playing order"></div>
+            <p id="turnOrderSummary" class="setup-hint"></p>
             <div id="playerList"></div>
           </section>
         </aside>
@@ -93,12 +155,13 @@
           <div class="board-head">
             <div>
               <h2>Minefield</h2>
-              <p>Unknown tiles are hidden. Walls and ridges are visible. Mines are revealed when scanned or triggered.</p>
+              <p>Numbers count bombs in eight neighboring grids at the time of scanning. They do not reveal bomb positions. Hover for the scan round.</p>
             </div>
             <div class="legend">
               <span>■ Unknown</span>
               <span>□ Safe</span>
               <span>◆ Mine</span>
+              <span>0–8 Scan clue</span>
               <span>▣ Wall</span>
               <span>▲ Ridge</span>
             </div>
@@ -109,17 +172,27 @@
 
         <!-- Only one phase panel is visible; the pass screen hides private programs. -->
         <aside class="panel control-panel">
+          <div id="diceControls" class="hidden">
+            <h2>Roll Action Points</h2>
+            <p id="dicePhaseHint" role="status" aria-live="polite"></p>
+            <button id="rollDiceBtn" type="button">Roll d6</button>
+            <button id="beginPlanningBtn" type="button" class="secondary" disabled>Begin Planning</button>
+          </div>
+          <div id="botControls" class="hidden" role="status" aria-live="polite">
+            <h2>Bot Planning</h2>
+            <p id="botMessage">A bot is secretly programming its actions.</p>
+            <p>Actions will appear as they resolve. You control the pace of execution.</p>
+          </div>
           <div id="planningControls">
             <h2>Program Actions</h2>
-            <p id="planningHint">Player 1: roll for action points.</p>
+            <p id="planningHint">Privately program the points you rolled.</p>
 
             <div class="dice-box" id="diceBox">
-              <span class="label">Action Point Die</span>
+              <span class="label">Your Action Points</span>
               <div class="dice-row">
                 <div id="diceFace" class="dice-face" role="status" aria-live="polite">—</div>
-                <button id="rollDiceBtn" type="button">Roll d6</button>
               </div>
-              <p id="diceHint">Roll before selecting any actions.</p>
+              <p id="diceHint">Use the points assigned during the dice phase.</p>
             </div>
 
             <div class="allocation-panel">
@@ -153,9 +226,9 @@
               <fieldset class="defense-actions">
                 <legend>Dodge / Disarm</legend>
                 <button data-action="DODGE">Dodge · 1 pt</button>
-                <button data-action="DISARM" title="Remove bombs from the eight surrounding grids without detonating them.">Disarm · 1 pt</button>
+                <button data-action="DISARM" title="Choose one adjacent grid to check and disarm safely.">Disarm · 1 pt</button>
               </fieldset>
-              <button data-action="SCAN">Scan Around · 2 pts</button>
+              <button data-action="SCAN">Scan Here · 1 pt</button>
               <button data-action="TRI_SCAN">3-Grid Scan · 1 pt</button>
               <button data-action="AREA_SCAN">3×3 Scan · 2 pts</button>
               <button data-action="DISCARD">Discard Remaining</button>
@@ -166,7 +239,7 @@
 
             <div class="programmed">
               <ol id="programList" class="program-list">
-                <li>Roll the die to begin.</li>
+                <li>No actions allocated yet.</li>
               </ol>
               <button id="undoActionBtn" class="secondary" type="button" disabled>Undo Last Action</button>
             </div>
@@ -181,10 +254,27 @@
 
           <div id="executionControls" class="hidden">
             <h2>Execution Phase</h2>
-            <p>Programmed actions remain hidden until each one resolves.</p>
-            <div id="executionQueue" class="queue" role="log" aria-live="polite"></div>
+            <p class="execution-cube-hint">One cube per rolled point. * Pending · Colored cubes are resolved. Blue marks the next player.</p>
+            <div class="execution-cubes">
+              <table class="execution-cube-table">
+                <caption>Dice rolls &amp; action points</caption>
+                <thead><tr id="executionRolls"></tr></thead>
+                <tbody id="executionPoints"></tbody>
+              </table>
+            </div>
+            <p id="executionProgress" class="execution-progress" role="status" aria-live="polite"></p>
             <button id="resolveNextBtn">Resolve Next Action</button>
             <button id="resolveAllBtn" class="secondary">Resolve Remaining</button>
+            <details class="execution-log">
+              <summary>Execution log</summary>
+              <div class="allocation-legend" aria-label="Execution log action colors">
+                <span class="legend-scan">Scan</span>
+                <span class="legend-attack">Attack</span>
+                <span class="legend-dodge">Dodge / Disarm</span>
+                <span class="legend-bomb">Bomb / Break Wall</span>
+              </div>
+              <div id="executionQueue" class="queue" role="log" aria-live="polite"></div>
+            </details>
           </div>
 
           <div id="winnerControls" class="hidden">
@@ -197,6 +287,14 @@
     </section>
   </main>
 
+  <script src="bots.js"></script>
+  <script src="game-agents.js"></script>
+  <script src="turn-order.js"></script>
+  <script src="execution-view.js"></script>
+  <script src="grid-visibility.js"></script>
+  <script src="dice-phase.js"></script>
+  <script src="mutators.js"></script>
+  <script src="game-rules.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

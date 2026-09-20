@@ -1,90 +1,43 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const {game, html} = require("./helpers");
 
-const root = path.join(__dirname, "..");
-const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const source = fs.readFileSync(path.join(root, "game.js"), "utf8");
-
-// Small DOM substitute for logic tests, not a browser layout engine. Timers are
-// controlled by each test so denial animations can be checked without sleeping.
-function element() {
-  const node = {
-    value: "", textContent: "", className: "", disabled: false,
-    children: [], dataset: {}, style: {}, listeners: {},
-    addEventListener(type, fn) { this.listeners[type] = fn; },
-    appendChild(child) { this.children.push(child); },
-    click() { if (!this.disabled) this.listeners.click?.(); },
-  };
-  node.classList = {
-    contains(name) { return node.className.split(/\s+/).includes(name); },
-    add(name) { if (!this.contains(name)) node.className += ` ${name}`; },
-    remove(name) { node.className = node.className.split(/\s+/).filter(x => x !== name).join(" "); },
-    toggle(name, force) {
-      const on = force ?? !this.contains(name);
-      if (on) this.add(name); else this.remove(name);
-      return on;
-    },
-  };
-  let markup = "", text = "";
-  Object.defineProperty(node, "textContent", {
-    get() { return text + node.children.map(child => child.textContent).join(""); },
-    set(value) { text = String(value); markup = ""; node.children = []; },
-  });
-  Object.defineProperty(node, "innerHTML", {
-    get() { return markup; },
-    set(value) { markup = value; text = ""; node.children = []; },
-  });
-  return node;
-}
-
-function game(settings = {}) {
-  const timers = [];
-  const elements = new Map([...html.matchAll(/\bid="([^"]+)"/g)].map(match => [match[1], element()]));
-  const buttons = [...html.matchAll(/data-action="([^"]+)"/g)].map(match => {
-    const button = element();
-    button.dataset.action = match[1];
-    return button;
-  });
-  const initial = {playerCount: "3", terrainCount: "0", ridgeCount: "0", bombPercent: "3", terrainType: "wall", ...settings};
-  for (const [id, value] of Object.entries(initial)) elements.get(id).value = value;
-  const context = vm.createContext({
-    document: {
-      getElementById: id => elements.get(id) || null,
-      querySelectorAll: selector => selector === "[data-action]" ? buttons : [],
-      createElement: element,
-    },
-    assert,
-    setTimeout(callback) { timers.push(callback); },
-  });
-  const run = script => vm.runInContext(script, context);
-  run(source);
-  run("startGame(); state.board = makeBoard();");
-  return {run, elements, timers, button: action => buttons.find(b => b.dataset.action === action)};
-}
-
-test("Default setup starts with three HP, twelve walls, and twenty-five percent bombs", () => {
+test("Default setup is four seats, one human, Moderate bots, random order, five HP, sixteen walls, and twenty percent bombs", () => {
   const defaults = Object.fromEntries(["startingHp", "terrainCount", "bombPercent"].map(id => {
     const input = html.match(new RegExp(`<input\\b[^>]*\\bid="${id}"[^>]*\\bvalue="([^"]+)"`));
     assert.ok(input, `Missing default value for ${id}`);
     return [id, input[1]];
   }));
-  const {run, elements} = game({...defaults, terrainType: "random", ridgeCount: "1"});
-  assert.equal(elements.get("startingHpValue").textContent, "3 HP");
-  assert.equal(elements.get("terrainCountValue").textContent, "12");
-  assert.equal(elements.get("bombPercentValue").textContent, "25%");
+  const selections = Object.fromEntries(["playerCount", "humanCount", "botDifficulty", "turnOrderMode", "terrainType", "visibilityMode"].map(id => {
+    const select = html.match(new RegExp(`<select\\b[^>]*\\bid="${id}"[^>]*>([\\s\\S]*?)</select>`));
+    const selected = select[1].match(/<option value="([^"]+)" selected>/);
+    assert.ok(selected, `Missing selected default for ${id}`);
+    return [id, selected[1]];
+  }));
+  const {run, elements} = game({...defaults, ...selections});
+  assert.equal(elements.get("startingHpValue").textContent, "5 HP");
+  assert.equal(elements.get("terrainCountValue").textContent, "16");
+  assert.equal(elements.get("bombPercentValue").textContent, "20%");
   run(`
     startGame();
-    assert.equal(state.config.startingHp, 3);
-    assert.equal(state.config.wallCount, 12);
-    assert.equal(state.config.bombPercent, 25);
-    state.players.forEach(p => assert.equal(p.hp, 3));
-    assert.equal(state.board.filter(tile => tile.type === "wall").length, 12);
-    assert.equal(state.board.filter(tile => tile.type === "mine").length, 25);
+    assert.equal(state.config.playerCount, 4);
+    assert.equal(state.config.humanCount, 1);
+    assert.equal(state.config.botDifficulty, "moderate");
+    assert.equal(state.config.turnOrderMode, "random");
+    assert.equal(state.config.terrainType, "wall");
+    assert.equal(state.config.visibilityMode, "default");
+    assert.equal(state.config.mutatorId, "last-survivor");
+    assert.equal(state.config.startingHp, 5);
+    assert.equal(state.config.wallCount, 16);
+    assert.equal(state.config.bombPercent, 20);
+    assert.equal(state.players.filter(p => p.controller === "moderate").length, 3);
+    state.players.forEach(p => assert.equal(p.hp, 5));
+    assert.equal(state.board.filter(tile => tile.type === "wall").length, 16);
+    assert.equal(state.board.filter(tile => tile.type === "mine").length, 20);
+    assert.equal(state.board.filter(tile => tile.type === "ridge").length, 0);
   `);
-  assert.equal(elements.get("bombStats").textContent, "25 bombs / 0 found");
+  assert.equal(elements.get("bombStats").textContent, "20 bombs / 0 found");
+  run("resetToSetup();");
 });
 
 test("Open-board movement goes straight first, then diagonal, in every direction", () => {
@@ -133,7 +86,7 @@ test("Movement can start diagonally to avoid terrain and still respects the poin
 
 test("Mixed movement previews, charges, and executes straight steps before diagonal steps", () => {
   const {run, elements, button} = game();
-  run("state.players[0].x = 4; state.players[0].y = 4; Math.random = () => 0.5; rollDice();");
+  run("state.players[0].x = 4; state.players[0].y = 4; Math.random = () => 0.5; completeDicePhase();");
   button("MOVE").click();
   run('selectBoardTile(tileAt(7, 5)); assert.deepEqual(selection.path, ["RIGHT", "RIGHT", "DOWN_RIGHT"]);');
   assert.equal(elements.get("confirmProgramBtn").textContent, "Add Move · 3 points");
@@ -160,7 +113,7 @@ test("Mixed movement previews, charges, and executes straight steps before diago
 
 test("Separate straight and diagonal segments connect and Undo refunds only the last segment", () => {
   const {run, elements, button} = game();
-  run("Math.random = () => 0.9; rollDice();");
+  run("Math.random = () => 0.9; completeDicePhase();");
   button("MOVE").click();
   run("selectBoardTile(tileAt(2, 0));");
   elements.get("confirmProgramBtn").click();
@@ -216,6 +169,45 @@ test("One HP eliminates on the first mine; ten HP survives with nine remaining",
   }
 });
 
+for (const resolve of ["stepped", "batch"]) {
+  test(`Triggered mines become normal safe grids next round with ${resolve} execution`, () => {
+    const {run, elements} = game();
+    run(`
+      tileAt(1, 0).type = "mine";
+      tileAt(2, 0).type = "mine";
+      tileAt(2, 0).revealed = true;
+      tileAt(3, 0).exploded = true; // An existing wall-demolition crater.
+      state.players[0].program = [{action: "MOVE", dir: "RIGHT"}];
+      state.players[1].program = [{action: "DISCARD"}];
+      state.players[2].program = [{action: "DISCARD"}];
+      beginExecution(); resolveNext();
+      assert.equal(tileAt(1, 0).type, "safe");
+      assert.equal(tileAt(1, 0).exploded, true);
+      assert.equal(tileAt(1, 0).explosionRound, 1);
+      assert.equal(state.players[0].hp, 2);
+    `);
+    assert.ok(elements.get("board").children[1].classList.contains("exploded"));
+    run(resolve === "batch" ? "resolveAll();"
+      : "while (state.executionIndex < state.queue.length) resolveNext(); resolveNext();");
+    run(`
+      assert.equal(state.round, 2);
+      assert.equal(tileAt(1, 0).type, "safe");
+      assert.equal(tileAt(1, 0).revealed, true);
+      assert.equal(tileAt(1, 0).exploded, false);
+      assert.equal(tileAt(2, 0).type, "mine");
+      assert.equal(tileAt(3, 0).exploded, true);
+      assert.equal(bombCounts().remaining, 2);
+      // Return to the starting square so the cleared square is unoccupied.
+      state.players[0].x = 0;
+      executeAction(state.players[0], {action: "BOMB", dir: "RIGHT"});
+      assert.equal(tileAt(1, 0).type, "mine");
+      assert.equal(tileAt(1, 0).revealed, true);
+    `);
+    assert.equal(elements.get("board").children[1].classList.contains("exploded"), false);
+    assert.ok(elements.get("board").children[1].classList.contains("safe"));
+  });
+}
+
 test("Player health changes from numeric HP to hearts below five, then to eliminated", () => {
   const {run, elements} = game({startingHp: "5"});
   const health = () => elements.get("playerList").children[0].innerHTML.match(/<span class="hp[^>]*>([^<]*)<\/span>/)[1];
@@ -238,7 +230,7 @@ test("Active player marker follows planning and execution, and clears for skippe
     assert.equal(elements.get("currentPlayerLabel").textContent, `Player ${number}`);
   };
   expectActive(1);
-  run("readyNextPlayer();");
+  run('completeDicePhase(); chooseAction("DISCARD"); confirmProgram(); readyNextPlayer();');
   expectActive(2);
   run('state.players.forEach(p => p.program = [{action: "DISCARD", dir: null}]); beginExecution();');
   expectActive(1);
@@ -260,17 +252,19 @@ test("Active player marker follows planning and execution, and clears for skippe
 test("Disarm requires a roll, costs one point, and removes nothing during planning", () => {
   const {run, elements, button} = game();
   assert.equal(button("DISARM").disabled, true);
-  run('Math.random = () => 0; rollDice(); tileAt(1, 0).type = "mine";');
+  run('Math.random = () => 0; completeDicePhase(); tileAt(1, 0).type = "mine";');
   assert.equal(button("DISARM").disabled, false);
   assert.equal(button("DODGE").disabled, false);
   button("DISARM").click();
+  assert.equal(elements.get("confirmProgramBtn").disabled, true);
+  run("selectBoardTile(tileAt(1, 0));");
   assert.equal(elements.get("confirmProgramBtn").disabled, false);
-  assert.equal(elements.get("board").children.filter(tile => tile.classList.contains("disarm-region")).length, 3);
+  assert.equal(elements.get("board").children.filter(tile => tile.classList.contains("disarm-region")).length, 1);
   elements.get("confirmProgramBtn").click();
   run(`
     assert.equal(currentPlanner().pointsRemaining, 0);
     assert.equal(currentPlanner().program[0].action, "DISARM");
-    assert.equal(currentPlanner().program[0].dir, null);
+    assert.equal(currentPlanner().program[0].dir, "RIGHT");
     assert.equal(tileAt(1, 0).type, "mine");
   `);
   assert.equal(elements.get("allocationTrack").children[0].classList.contains("point-dodge"), true);
@@ -278,8 +272,9 @@ test("Disarm requires a roll, costs one point, and removes nothing during planni
 
 test("Undo refunds Disarm's single point and removes its allocation", () => {
   const {run, elements, button} = game();
-  run("Math.random = () => 0.4; rollDice();");
+  run("Math.random = () => 0.4; completeDicePhase();");
   button("DISARM").click();
+  run("selectBoardTile(tileAt(1, 0));");
   elements.get("confirmProgramBtn").click();
   run("assert.equal(currentPlanner().pointsRemaining, 2);");
   elements.get("undoActionBtn").click();
@@ -290,9 +285,10 @@ test("Undo refunds Disarm's single point and removes its allocation", () => {
 test("Dodge unlocks with one point, allocates one cube, and refunds one point on undo", () => {
   const {run, elements, button} = game();
   assert.equal(button("DODGE").disabled, true);
-  run("Math.random = () => 0; rollDice();");
+  run("Math.random = () => 0; completeDicePhase();");
   assert.equal(button("DODGE").disabled, false);
   button("DODGE").click();
+  run("selectBoardTile(tileAt(1, 0));");
   assert.equal(elements.get("confirmProgramBtn").textContent, "Add Dodge · 1 point");
   elements.get("confirmProgramBtn").click();
   run(`
@@ -303,8 +299,9 @@ test("Dodge unlocks with one point, allocates one cube, and refunds one point on
   `);
   assert.equal(elements.get("allocationTrack").children.filter(c => c.classList.contains("point-dodge")).length, 1);
   // A two-point roll leaves planning open so Undo is available through the UI.
-  run("startGame(); Math.random = () => 0.2; rollDice();");
+  run("startGame(); Math.random = () => 0.2; completeDicePhase();");
   button("DODGE").click();
+  run("selectBoardTile(tileAt(1, 0));");
   elements.get("confirmProgramBtn").click();
   run("assert.equal(currentPlanner().pointsRemaining, 1);");
   elements.get("undoActionBtn").click();
@@ -324,7 +321,7 @@ test("Bomb stats show the configured total and reset discoveries on a new game",
 });
 
 test("Bomb stats track scans, planting, disarming, and explosions as queued actions resolve", () => {
-  const {run, elements} = game();
+  const {run, elements} = game({emptyBoard: true});
   const expectStats = value => assert.equal(elements.get("bombStats").textContent, value);
   run(`
     tileAt(1, 0).type = "mine"; tileAt(2, 0).type = "mine";
@@ -335,84 +332,87 @@ test("Bomb stats track scans, planting, disarming, and explosions as queued acti
   `);
   expectStats("2 bombs / 0 found");
   run("resolveNext();");
-  expectStats("2 bombs / 1 found");
+  expectStats("2 bombs / 0 found");
   run("resolveNext();");
-  expectStats("2 bombs / 1 found");
+  expectStats("2 bombs / 0 found");
   run("resolveNext();");
-  expectStats("3 bombs / 1 found");
+  expectStats("3 bombs / 0 found");
   run(`
     finishRound();
     state.players[0].program = [
-      {action: "DISARM"}, {action: "MOVE", dir: "RIGHT"},
+      {action: "DISARM", dir: "RIGHT"}, {action: "MOVE", dir: "RIGHT"},
       {action: "SCAN"}, {action: "MOVE", dir: "RIGHT"},
     ];
     beginExecution();
   `);
-  expectStats("3 bombs / 1 found");
+  expectStats("3 bombs / 0 found");
+  run("resolveNext();");
+  expectStats("2 bombs / 0 found");
+  run("resolveNext(); resolveNext();");
+  expectStats("2 bombs / 0 found");
   run("resolveNext();");
   expectStats("1 bomb / 0 found");
-  run("resolveNext(); resolveNext();");
-  expectStats("1 bomb / 1 found");
-  run("resolveNext();");
-  expectStats("0 bombs / 0 found");
   run("finishRound();");
-  expectStats("0 bombs / 0 found");
+  expectStats("1 bomb / 0 found");
 });
 
 test("Resolve Remaining updates bomb stats and wall demolition does not count as a bomb", () => {
-  const {run, elements} = game();
+  const {run, elements} = game({emptyBoard: true});
   run(`
     tileAt(1, 0).type = "mine"; tileAt(0, 1).type = "wall";
     state.players[0].program = [{action: "SCAN"}, {action: "BOMB", dir: "DOWN"}];
     beginExecution(); resolveAll();
   `);
-  assert.equal(elements.get("bombStats").textContent, "1 bomb / 1 found");
+  assert.equal(elements.get("bombStats").textContent, "1 bomb / 0 found");
   run(`
-    state.players[0].program = [{action: "DISARM"}];
+    state.players[0].program = [{action: "DISARM", dir: "RIGHT"}];
     beginExecution(); resolveAll();
   `);
   assert.equal(elements.get("bombStats").textContent, "0 bombs / 0 found");
 });
 
 for (const scan of [
-  {action: "SCAN", cost: 2, grids: 8, mine: {x: 5, y: 5}},
+  {action: "SCAN", cost: 1, grids: 1, mine: {x: 5, y: 5}},
   {action: "TRI_SCAN", cost: 1, grids: 3, mine: {x: 5, y: 5}},
   {action: "AREA_SCAN", cost: 2, grids: 9, mine: {x: 6, y: 4}},
 ]) {
-  test(`${scan.action} previews and reveals its whole region around walls without destroying them`, () => {
+  test(`${scan.action} previews and records clue counts without revealing bombs or destroying walls`, () => {
     const {run, elements, button} = game();
     run(`
       state.players[0].x = 4; state.players[0].y = 4;
       tileAt(5, 4).type = "wall"; tileAt(5, 4).revealed = true;
       tileAt(4, 5).type = "wall"; tileAt(4, 5).revealed = true;
       tileAt(${scan.mine.x}, ${scan.mine.y}).type = "mine";
-      Math.random = () => 0.5; rollDice();
+      Math.random = () => 0.5; completeDicePhase();
     `);
     button(scan.action).click();
     if (scan.action !== "SCAN") run("selectBoardTile(tileAt(5, 4));");
     assert.equal(elements.get("confirmProgramBtn").disabled, false);
     assert.equal(elements.get("board").children.filter(tile => tile.classList.contains("scan-region")).length, scan.grids);
     const mineCell = elements.get("board").children[scan.mine.y * 10 + scan.mine.x];
-    assert.equal(mineCell.classList.contains("scan-region"), true);
+    assert.equal(mineCell.classList.contains("scan-region"), scan.action !== "SCAN");
     assert.equal(mineCell.classList.contains("mine"), false);
     elements.get("confirmProgramBtn").click();
     run(`
       assert.equal(currentPlanner().pointsRemaining, ${4 - scan.cost});
       assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, false);
       beginExecution(); resolveNext();
-      assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, true);
+      assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, false);
+      const clueTiles = state.board.filter(t => Number.isInteger(t.clueCount));
+      assert.equal(clueTiles.length, ${scan.grids});
+      clueTiles.forEach(t => assert.equal(t.clueCount, surroundingTiles(t).filter(n => n.type === "mine").length));
       assert.equal(tileAt(5, 4).type, "wall");
       assert.equal(tileAt(4, 5).type, "wall");
       assert.equal(canEnter(5, 4, 1), false);
     `);
-    assert.equal(elements.get("bombStats").textContent, "1 bomb / 1 found");
+    assert.equal(elements.get("bombStats").textContent, "2 bombs / 0 found");
   });
 }
 
 test("Breaking a wall costs two points and opens a safe grid only when executed", () => {
   const {run, elements, button} = game();
   assert.equal(button("BOMB").disabled, true);
-  run('tileAt(1, 0).type = "wall"; Math.random = () => 0.4; rollDice();');
+  run('tileAt(1, 0).type = "wall"; Math.random = () => 0.4; completeDicePhase();');
   button("BOMB").click();
   run("selectBoardTile(tileAt(1, 0));");
   assert.equal(elements.get("confirmProgramBtn").disabled, false);
@@ -441,12 +441,61 @@ test("Breaking a wall costs two points and opens a safe grid only when executed"
     assert.equal(state.players[0].x, 1);
     assert.equal(state.players[0].hp, state.config.startingHp);
   `);
-  assert.equal(elements.get("bombStats").textContent, "0 bombs / 0 found");
+  assert.equal(elements.get("bombStats").textContent, "1 bomb / 0 found");
+});
+
+test("A queued wall break opens a selectable path without changing live terrain before execution", () => {
+  const {run, elements} = game();
+  run(`
+    tileAt(1, 0).type = "wall";
+    Math.random = () => 0.4; completeDicePhase();
+    assert.equal(movementPaths(currentPlanner()).has("1,0"), false);
+    chooseAction("BOMB"); selectBoardTile(tileAt(1, 0)); confirmProgram();
+    assert.deepEqual(movementPaths(currentPlanner()).get("1,0"), ["RIGHT"]);
+    assert.equal(tileAt(1, 0).type, "wall");
+    assert.equal(canEnter(1, 0, 1), false);
+  `);
+  assert.ok(elements.get("board").children[1].classList.contains("move-reachable"));
+  run(`
+    chooseAction("MOVE"); selectBoardTile(tileAt(1, 0)); confirmProgram();
+    assert.deepEqual(state.players[0].program.map(a => a.action), ["BOMB", "MOVE"]);
+    assert.equal(state.players[0].pointsRemaining, 0);
+    beginExecution(); resolveNext();
+    assert.equal(tileAt(1, 0).type, "safe");
+    assert.equal(state.players[0].x, 0);
+    resolveNext();
+    assert.equal(state.players[0].x, 1);
+    assert.equal(state.players[0].hp, 3);
+  `);
+});
+
+test("Wall-break paths use the queued position and Undo restores the wall restriction", () => {
+  const {run} = game();
+  run(`
+    tileAt(1, 1).type = "wall"; tileAt(1, 0).type = "wall";
+    Math.random = () => 0.9; completeDicePhase();
+    chooseAction("MOVE"); selectBoardTile(tileAt(0, 1)); confirmProgram();
+    chooseAction("BOMB"); selectBoardTile(tileAt(1, 1)); confirmProgram();
+    assert.deepEqual(movementPaths(currentPlanner()).get("2,1"), ["RIGHT", "RIGHT"]);
+    assert.equal(movementPaths(currentPlanner()).has("1,0"), false);
+    undoLastAction();
+    assert.deepEqual(plannedPosition(currentPlanner()), {x: 0, y: 1});
+    assert.equal(movementPaths(currentPlanner()).has("1,1"), false);
+    assert.equal(currentPlanner().pointsRemaining, 5);
+    // Neither a different player's secret wall break nor a bomb aimed at a
+    // ridge can make those grids enter the movement preview.
+    state.players[1].x = 2; state.players[1].y = 1;
+    state.players[1].program = [{action: "BOMB", dir: "LEFT"}];
+    tileAt(0, 2).type = "ridge";
+    currentPlanner().program.push({action: "BOMB", dir: "DOWN"});
+    assert.equal(movementPaths(currentPlanner()).has("1,1"), false);
+    assert.equal(movementPaths(currentPlanner()).has("0,2"), false);
+  `);
 });
 
 test("A one-point roll cannot break a wall, and the two-point action cannot destroy ridges", () => {
   const {run, button} = game();
-  run("Math.random = () => 0; rollDice();");
+  run("Math.random = () => 0; completeDicePhase();");
   assert.equal(button("BOMB").disabled, true);
   run(`
     tileAt(1, 0).type = "ridge";
@@ -457,19 +506,24 @@ test("A one-point roll cannot break a wall, and the two-point action cannot dest
   `);
 });
 
-test("Disarm clears all eight adjacent bombs, hidden or revealed, without damage or explosion", () => {
+test("Disarm targets each of eight directions individually without damage or explosion", () => {
   const {run} = game();
   run(`
     const p = state.players[0]; p.x = 4; p.y = 4;
     surroundingTiles(p).forEach((tile, i) => { tile.type = "mine"; tile.revealed = i % 2 === 0; });
     tileAt(6, 4).type = "mine";
-    executeAction(p, {action: "DISARM", dir: null});
+    for (const [name, dir] of Object.entries(DIRS)) {
+      const before = bombCounts().remaining;
+      executeAction(p, {action: "DISARM", dir: name});
+      assert.equal(bombCounts().remaining, before - 1);
+      assert.equal(tileAt(p.x + dir.dx, p.y + dir.dy).type, "safe");
+    }
     surroundingTiles(p).forEach(tile => {
       assert.equal(tile.type, "safe"); assert.equal(tile.revealed, true); assert.equal(tile.exploded, false);
     });
     assert.equal(tileAt(6, 4).type, "mine");
     assert.equal(p.hp, state.config.startingHp); assert.equal(p.alive, true); assert.equal(p.dodge, false);
-    assert.match(state.log, /disarms 8 surrounding bombs/);
+    assert.match(state.log, /disarms 1 bomb/);
   `);
 });
 
@@ -478,15 +532,15 @@ test("Disarm clips at corners and preserves terrain, unexplored safe tiles, and 
   run(`
     const p = state.players[0];
     tileAt(1, 0).type = "wall"; tileAt(0, 1).type = "ridge"; tileAt(1, 1).type = "mine";
-    executeAction(p, {action: "DISARM"});
+    executeAction(p, {action: "DISARM", dir: "DOWN_RIGHT"});
     assert.equal(tileAt(1, 0).type, "wall"); assert.equal(tileAt(0, 1).type, "ridge");
     assert.equal(tileAt(1, 1).type, "safe"); assert.equal(tileAt(1, 1).exploded, false);
-    assert.match(state.log, /disarms 1 surrounding bomb\./);
+    assert.match(state.log, /disarms 1 bomb/);
     tileAt(1, 0).type = "safe"; tileAt(1, 0).revealed = false;
     tileAt(0, 1).type = "safe"; tileAt(0, 1).exploded = true;
-    executeAction(p, {action: "DISARM"});
+    executeAction(p, {action: "DISARM", dir: "DOWN"});
     assert.equal(tileAt(1, 0).revealed, false); assert.equal(tileAt(0, 1).exploded, true);
-    assert.match(state.log, /finds no bombs/);
+    assert.match(state.log, /no bomb/);
   `);
 });
 
@@ -494,14 +548,14 @@ test("Queued Disarm uses the player's position after movement and records the ou
   const {run} = game();
   run(`
     const p = state.players[0]; p.x = 3; p.y = 3;
-    p.program = [{action: "MOVE", dir: "RIGHT"}, {action: "DISARM", dir: null}];
+    p.program = [{action: "MOVE", dir: "RIGHT"}, {action: "DISARM", dir: "DOWN_RIGHT"}];
     state.players.slice(1).forEach(other => other.program = [{action: "DISCARD", dir: null}]);
     tileAt(5, 4).type = "mine"; tileAt(2, 3).type = "mine";
     beginExecution();
     for (let i = 0; i < 4; i++) resolveNext();
     assert.equal(p.x, 4); assert.equal(tileAt(5, 4).type, "safe");
     assert.equal(tileAt(2, 3).type, "mine"); assert.equal(p.hp, state.config.startingHp);
-    assert.match(state.queue[3].resultLog, /disarms 1 surrounding bomb/);
+    assert.match(state.queue[3].resultLog, /disarms 1 bomb/);
     assert.equal(state.queue[3].eventType, null);
   `);
 });
@@ -509,13 +563,13 @@ test("Queued Disarm uses the player's position after movement and records the ou
 test("Resolve Remaining applies Disarm, while an eliminated player's Disarm is skipped", () => {
   const {run} = game();
   run(`
-    state.players.forEach(p => p.program = [{action: "DISARM", dir: null}]);
+    state.players.forEach(p => p.program = [{action: "DISARM", dir: "LEFT"}]);
     tileAt(1, 0).type = "mine"; tileAt(8, 9).type = "mine";
     beginExecution();
     state.players[0].alive = false; state.players[0].hp = 0;
     resolveAll();
     assert.equal(tileAt(1, 0).type, "mine"); assert.equal(tileAt(8, 9).type, "safe");
-    assert.equal(state.phase, "planning"); assert.equal(state.round, 2);
+    assert.equal(state.phase, "rolling"); assert.equal(state.round, 2);
   `);
 });
 
@@ -533,7 +587,7 @@ test("Setup normalization preserves zero terrain and clamps values to board capa
   run(`
     startGame();
     assert.equal(state.players.length, 6);
-    assert.equal(state.config.startingHp, 3);
+    assert.equal(state.config.startingHp, 5);
     assert.equal(state.config.wallCount, 20);
     assert.equal(state.config.ridgeLines, 2);
     assert.equal(state.config.bombPercent, 64);
@@ -573,7 +627,7 @@ test("Board cells and handlers are reused without retaining old tokens, highligh
   assert.equal(cells[1].listeners.click, click);
   assert.equal(cells[0].children.length, 1);
   assert.equal(cells[0].children[0].children.length, 1);
-  run("Math.random = () => 0.5; rollDice();");
+  run("Math.random = () => 0.5; completeDicePhase();");
   button("MOVE").click();
   cells[1].click();
   assert.equal(cells[1].classList.contains("selected-target"), true);
@@ -584,7 +638,7 @@ test("Board cells and handlers are reused without retaining old tokens, highligh
   cells[1].click();
   run("assert.equal(state, null);");
   elements.get("startGameBtn").click();
-  run('state.board = makeBoard(); tileAt(1, 0).type = "ridge"; Math.random = () => 0.5; rollDice();');
+  run('state.board = makeBoard(); tileAt(1, 0).type = "ridge"; Math.random = () => 0.5; completeDicePhase();');
   assert.equal(elements.get("board").children[1], cells[1]);
   button("BOMB").click();
   cells[1].click();
@@ -603,9 +657,9 @@ test("An earlier denial timer cannot erase a later click's feedback", () => {
   run("assert.equal(deniedTile, null);");
 });
 
-test("Directional scans reject clipped regions while Scan Around clips at corners", () => {
+test("Directional scans reject clipped regions while Scan Here counts corner neighbors", () => {
   const {run, elements, button} = game();
-  run('tileAt(1, 0).type = "mine"; Math.random = () => 0.9; rollDice();');
+  run('tileAt(1, 0).type = "mine"; Math.random = () => 0.9; completeDicePhase();');
   for (const action of ["TRI_SCAN", "AREA_SCAN"]) {
     button(action).click();
     run("selectBoardTile(tileAt(1, 0));");
@@ -614,8 +668,8 @@ test("Directional scans reject clipped regions while Scan Around clips at corner
     run('assert.equal(tileAt(1, 0).revealed, false); assert.match(state.log, /beyond the board/);');
   }
   button("SCAN").click();
-  assert.equal(elements.get("board").children.filter(tile => tile.classList.contains("scan-region")).length, 3);
-  run('executeAction(state.players[0], {action: "SCAN"}); assert.equal(tileAt(1, 0).revealed, true);');
+  assert.equal(elements.get("board").children.filter(tile => tile.classList.contains("scan-region")).length, 1);
+  run('executeAction(state.players[0], {action: "SCAN"}); assert.equal(tileAt(1, 0).revealed, false); assert.equal(tileAt(0, 0).clueCount, 1);');
 });
 
 test("Single-step and batch resolution agree on damage, skipped players, and early victory", () => {
@@ -650,9 +704,9 @@ test("Batch resolution starts the same next round as individual resolution and i
   const stepped = game();
   const batched = game();
   const configure = `
-    state.players[0].program = [{action: "BOMB", dir: "RIGHT"}, {action: "DISARM"}];
+    state.players[0].program = [{action: "BOMB", dir: "RIGHT"}, {action: "DISARM", dir: "RIGHT"}];
     state.players[1].program = [{action: "SCAN"}];
-    state.players[2].program = [{action: "DODGE"}, {action: "MOVE", dir: "DOWN"}];
+    state.players[2].program = [{action: "DODGE", dir: "DOWN"}, {action: "MOVE", dir: "DOWN"}];
     beginExecution();
   `;
   stepped.run(configure);
@@ -663,7 +717,7 @@ test("Batch resolution starts the same next round as individual resolution and i
   const snapshot = batched.run("JSON.stringify(state)");
   batched.run("resolveAll();");
   assert.equal(batched.run("JSON.stringify(state)"), snapshot);
-  batched.run('assert.equal(state.phase, "planning"); assert.equal(state.round, 2);');
+  batched.run('assert.equal(state.phase, "rolling"); assert.equal(state.round, 2);');
 });
 
 test("Execution queue exposes only resolved actions and keeps the next action hidden", () => {
@@ -680,7 +734,7 @@ test("Execution queue exposes only resolved actions and keeps the next action hi
   run("resolveNext();");
   const rows = elements.get("executionQueue").children;
   assert.equal(rows.length, 2);
-  assert.match(rows[0].textContent, /Scan Around/);
+  assert.match(rows[0].textContent, /Scan Here/);
   assert.equal(rows[1].textContent, "Next · Player 2 · Hidden action");
   assert.doesNotMatch(elements.get("executionQueue").textContent, /Bomb|Disarm|Dodge/);
 });
