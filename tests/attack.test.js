@@ -13,6 +13,7 @@ test("Attacks reach two grids straight and one diagonally in every direction, pu
   run(`
     const [p, target] = state.players;
     p.x = 4; p.y = 4;
+    target.hp = 20;
     for (const [name, dir] of Object.entries(DIRS)) {
       const range = dir.diagonal ? 1 : 2;
       target.x = p.x + dir.dx * range; target.y = p.y + dir.dy * range;
@@ -23,6 +24,7 @@ test("Attacks reach two grids straight and one diagonally in every direction, pu
       assert.equal(target.x, p.x + dir.dx * (range + 1));
       assert.equal(target.y, p.y + dir.dy * (range + 1));
     }
+    assert.equal(target.hp, 12);
   `);
 });
 
@@ -47,7 +49,7 @@ test("Ranged attacks respect terrain, the nearest player, dodge, and blocked pus
     other.y = 5;
     tileAt(7, 4).type = "mine";
     executeAction(p, {action: "ATTACK", dir: "RIGHT"});
-    assert.equal(target.x, 7); assert.equal(target.hp, 2);
+    assert.equal(target.x, 7); assert.equal(target.hp, 1);
     assert.equal(tileAt(7, 4).type, "safe");
   `);
 });

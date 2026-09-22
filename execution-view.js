@@ -57,6 +57,9 @@ const ExecutionView = (() => {
         } else {
           const cube = document.createElement("span");
           cube.className = "allocation-cell execution-cube " + (item ? `point-${allocationType(item.action)}` : "usable");
+          if (item && (item.emptyAction || (item.action === "DODGE" && !item.dodgeTriggered))) {
+            cube.classList.add("point-empty");
+          }
           cube.textContent = item ? "" : "*";
           cell.classList.add(item ? "point-resolved" : "point-pending");
           cell.title = item
@@ -72,7 +75,9 @@ const ExecutionView = (() => {
       });
       body.appendChild(row);
     }
-    el("executionProgress").textContent = current
+    el("executionProgress").textContent = state.pendingScanMove
+      ? `${active.name}: choose your scan-adjusted Move on the board or keep the programmed direction.`
+      : current
       ? active ? `Next: ${active.name}. Programmed actions stay hidden until they resolve.`
         : "Next: skip an eliminated player's action."
       : "All actions resolved. Finish the round to continue.";

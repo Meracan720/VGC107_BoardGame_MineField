@@ -6,9 +6,9 @@
  */
 
 /* Mode definitions live here so future mutators can add their own title,
- * description, and victory condition without changing the setup list. */
+ * description, optional fixed player count, and victory condition. */
 const GameMutators = (() => {
-  const modes = [Object.freeze({
+  const lastSurvivor = Object.freeze({
     id: "last-survivor",
     title: "Last Survivor",
     description: "The last standing WINS.",
@@ -25,6 +25,13 @@ const GameMutators = (() => {
         log: "No players survived.",
       };
     },
+  });
+  const modes = [lastSurvivor, Object.freeze({
+    ...lastSurvivor,
+    id: "last-survivor-8",
+    title: "Last Survivor — 8 Players",
+    description: "Eight players. Your current settings. The last standing WINS.",
+    playerCount: 8,
   })];
   const inputs = [];
 
@@ -39,6 +46,7 @@ const GameMutators = (() => {
         input.name = "mutator";
         input.value = mode.id;
         input.checked = index === 0;
+        input.addEventListener("change", updateSetupConfig);
         const copy = document.createElement("span");
         const title = document.createElement("span");
         title.className = "mutator-title";
@@ -56,6 +64,10 @@ const GameMutators = (() => {
     }
     const selected = inputs.find(input => input.checked) || inputs[0];
     selected.checked = true;
+    const mode = get(selected.value);
+    const seats = el("playerCount");
+    seats.disabled = Boolean(mode.playerCount);
+    if (mode.playerCount) seats.value = String(mode.playerCount);
     return {mutatorId: selected.value};
   }
 

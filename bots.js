@@ -46,12 +46,40 @@ const MinefieldAgents = (() => {
     };
     const visited = new Map();
     let x = view.self.x, y = view.self.y;
+    const hasPlannedAttack = view.self.program.some(item => item.action === "ATTACK");
     let defended = false, planted = false;
     for (const item of view.self.program) {
       const dir = view.directions[item.dir];
       if (item.action === "MOVE") {
         visited.set(`${x},${y}`, (visited.get(`${x},${y}`) || 0) + 1);
-        x += dir.dx; y += dir.dy;
+        const target = opponents.find(opponent => opponent.x === x + dir.dx && opponent.y === y + dir.dy);
+        if (!target) {
+          x += dir.dx; y += dir.dy;
+        } else if (hasPlannedAttack) {
+          damageOpponent(target, 1);
+          const pushed = at(target.x + dir.dx, target.y + dir.dy);
+          if (!blocked(pushed) && !occupied(pushed.x, pushed.y)) {
+            target.x = pushed.x; target.y = pushed.y;
+            if (pushed.type === "mine") {
+              damageOpponent(target, view.suddenDeath ? target.hp : 1);
+              pushed.type = "safe";
+              pushed.exploded = true;
+            }
+          }
+          if (!opponents.includes(target)) {
+            x += dir.dx; y += dir.dy;
+          } else if (target.x === x + dir.dx && target.y === y + dir.dy) {
+            // A blocked push still costs the point but leaves both players in place.
+          } else {
+            x += dir.dx; y += dir.dy;
+          }
+        } else {
+          const nearby = Object.values(view.directions)
+            .map(delta => at(x + delta.dx, y + delta.dy))
+            .filter(tile => tile && !blocked(tile) && !occupied(tile.x, tile.y));
+          const squeeze = nearby[0];
+          if (squeeze) { x = squeeze.x; y = squeeze.y; }
+        }
       } else if (item.action === "DISARM") {
         const tile = at(x + dir.dx, y + dir.dy);
         if (!blocked(tile)) tile.type = "safe";
@@ -70,6 +98,7 @@ const MinefieldAgents = (() => {
             damageOpponent(target, 1);
           } else if (!occupied(next.x, next.y)) {
             target.x = next.x; target.y = next.y;
+            damageOpponent(target, 1);
             if (next.type === "mine") {
               damageOpponent(target, view.suddenDeath ? target.hp : 1);
               next.type = "safe";
@@ -99,6 +128,7 @@ const MinefieldAgents = (() => {
     const distanceToEnemy = tile => Math.min(...opponents.map(p => Math.abs(p.x - tile.x) + Math.abs(p.y - tile.y)));
 
     const canAttack = origin => Object.values(view.directions).some(dir => attackTarget(origin, dir, at, opponents));
+    const plannedAttack = view.self.program.some(item => item.action === "ATTACK");
 
     // Reverse weighted shortest paths to attack positions. Routes go
     // around terrain, prefer safe grids, and never use hidden mine locations.
@@ -124,7 +154,7 @@ const MinefieldAgents = (() => {
     function score(choice) {
       const target = choice.target && at(choice.target.x, choice.target.y);
       if (choice.action === "MOVE") {
-        if (occupied(target.x, target.y)) return -50;
+        if (occupied(target.x, target.y)) return plannedAttack ? 10 : -8;
         const progress = Number.isFinite(distance(position)) && Number.isFinite(distance(target))
           ? distance(position) - distance(target) : distanceToEnemy(position) - distanceToEnemy(target);
         return 6 + progress * 4 - risk(target) * 3 - (model.visited.get(`${target.x},${target.y}`) || 0) * 4;
@@ -153,7 +183,7 @@ const MinefieldAgents = (() => {
         return distanceToEnemy(target) <= 2 ? (expert ? 11 : 7) : -8;
       }
       if (choice.action.includes("SCAN")) {
-        const fresh = choice.region.filter(t => choice.action === "TRI_SCAN"
+        const fresh = choice.region.filter(t => choice.action !== "SCAN"
           ? at(t.x, t.y).type === "unknown" : at(t.x, t.y).clueRound !== view.round).length;
         return scanned ? -10 : fresh / choice.cost - 2;
       }

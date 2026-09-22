@@ -218,7 +218,7 @@ output {
 }
 
 .status-panel, .player-panel, .control-panel { padding: 12px; }
-.board-panel { padding: 16px; }
+.board-panel { padding: 12px; }
 .status-panel h2, .player-panel h2 { margin-bottom: 12px; font-size: 18px; }
 
 .status-row {
@@ -265,6 +265,8 @@ output {
 .round-die { display: grid; justify-items: center; gap: 4px; padding: 3px 0; border-radius: 6px; font-size: 11px; font-weight: 700; }
 .round-die-cube.allocation-cell { min-width: 0; width: 28px; height: 28px; font-size: 17px; }
 .round-die.rolling-player { outline: 2px solid #56a3ff; background: #1a3048; }
+.round-die.dead { opacity: .45; text-decoration: line-through; }
+.round-die.dead .round-die-cube { width: auto; min-width: 48px; padding: 0 4px; font-size: 10px; }
 
 .player-card {
   display: flex;
@@ -280,11 +282,20 @@ output {
 
 .player-card.dead { opacity: .45; text-decoration: line-through; }
 .player-card.active { border-color: #8da8ff; }
+.player-card.execution-active { animation: active-player-pulse 2s ease-in-out infinite; }
+@keyframes active-player-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
 .bot-badge { flex-basis: 100%; color: #b9c8e8; font-size: 11px; overflow-wrap: anywhere; }
 .player-identity { display: inline-flex; align-items: center; gap: 7px; }
 .player-name { font-weight: 800; }
 .hp { white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
 .hp.hearts { color: #f08b96; font-size: 16px; letter-spacing: 1px; }
+.player-card.hp-low { border-color: #f59e42; color: #f59e42; }
+.player-card.hp-critical { border-color: #dc143c; color: #dc143c; }
+.player-card.hp-low .hp, .player-card.hp-low .bot-badge,
+.player-card.hp-critical .hp, .player-card.hp-critical .bot-badge { color: inherit; }
 .active-player-cube {
   width: 11px;
   height: 11px;
@@ -297,12 +308,17 @@ output {
 
 .main-grid {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 340px;
+  /* Match the board column to its square plus panel padding and borders. */
+  grid-template-columns: minmax(280px, 320px) minmax(0, calc(76vh + 26px)) var(--control-panel-width, 340px);
+  justify-content: center;
   gap: 14px;
   align-items: start;
 }
 
 .main-grid > * { min-width: 0; }
+
+/* Eight 44px player columns plus panel padding fit during execution. */
+.main-grid:has(#executionControls:not(.hidden)) { --control-panel-width: 400px; }
 
 .board-head {
   display: flex;
@@ -325,7 +341,7 @@ output {
 
 /* Board cells: terrain, selection previews, denial feedback, and player tokens. */
 .board {
-  width: min(76vh, 100%);
+  width: 100%;
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   display: grid;
@@ -465,6 +481,8 @@ output {
 .token.p4, .active-player-cube.p4 { background: #9a7a3f; }
 .token.p5, .active-player-cube.p5 { background: #6f4b9a; }
 .token.p6, .active-player-cube.p6 { background: #347f8c; }
+.token.p7, .active-player-cube.p7 { background: #a85d32; }
+.token.p8, .active-player-cube.p8 { background: #657b8b; }
 
 /* Private planning: die, action buttons, allocation colors, and queued choices. */
 .control-panel {
@@ -701,28 +719,34 @@ output {
 /* Compact allocation-style cubes stay in the normal control panel. */
 .execution-cube-hint { font-size: 12px; color: #aeb6c7; }
 .execution-cubes { overflow-x: auto; padding: 3px; }
-.execution-cube-table { width: max-content; border-collapse: separate; border-spacing: 0; }
+.execution-cube-table { width: min(100%, 352px); table-layout: fixed; border-collapse: separate; border-spacing: 0; }
 .execution-cube-table caption { text-align: left; color: #aeb6c7; font-size: 12px; margin-bottom: 8px; }
-.execution-cube-table th, .execution-cube-table td { width: 44px; text-align: center; border-left: 2px solid transparent; border-right: 2px solid transparent; }
+.execution-cube-table th, .execution-cube-table td { text-align: center; border-left: 2px solid transparent; border-right: 2px solid transparent; }
 .execution-player { padding: 5px 3px; border-top: 2px solid transparent; }
 .execution-player span { display: block; font-size: 14px; }
 .execution-player small { display: block; margin-top: 3px; font-size: 10px; font-weight: 400; color: #cad4e5; }
 .execution-point { padding: 3px; }
-.execution-cube.allocation-cell { width: 32px; height: 32px; min-width: 32px; transform: none; }
+.execution-cube.allocation-cell { width: min(32px, 100%); aspect-ratio: 1; min-width: 0; margin-inline: auto; transform: none; }
+.execution-cube.allocation-cell.point-move { background: #596170; border-color: #939ba7; color: #f3f5f8; }
+.execution-cube.allocation-cell.usable,
+.execution-cube.allocation-cell.point-empty { background: transparent; border: 2px solid #939ba7; color: #aeb6c7; }
 .execution-point.last-point { border-bottom: 2px solid transparent; }
 .execution-point.hp-loss .execution-cube { box-shadow: 0 0 0 2px #e99245; }
 .execution-point.eliminated .execution-cube { box-shadow: 0 0 0 2px #ef6570; }
-.execution-cube-table .executing-player { border-left-color: #56a3ff; border-right-color: #56a3ff; animation: execution-blink 1.2s ease-in-out infinite; }
+.execution-cube-table .executing-player { border-left-color: #56a3ff; border-right-color: #56a3ff; animation: execution-blink 2s ease-in-out infinite; }
 .execution-cube-table th.executing-player { border-top-color: #56a3ff; }
 .execution-cube-table .last-point.executing-player { border-bottom-color: #56a3ff; }
 .execution-progress { margin: 10px 3px 3px; font-size: 12px; color: #b9d8ff; }
 .execution-log { margin-top: 18px; }
 .execution-log summary { cursor: pointer; color: #b9c8e8; }
+.latest-execution-log { display: block; margin-top: 8px; color: #d9e0ed; font-size: 13px; line-height: 1.5; }
+.execution-log[open] .latest-execution-log { display: none; }
 @keyframes execution-blink {
   0%, 100% { border-left-color: #56a3ff; border-right-color: #56a3ff; }
   50% { border-left-color: #224875; border-right-color: #224875; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .player-card.execution-active { animation: none; }
   .execution-cube-table .executing-player { animation: none; }
 }
 
@@ -736,6 +760,7 @@ output {
 
 .queue-item.done { opacity: .42; text-decoration: line-through; }
 .queue-item.current { outline: 2px solid #8da8ff; }
+.queue-result { margin-top: 5px; font-size: 12px; font-weight: 400; line-height: 1.5; }
 
 .queue-item.log-scan { --log-accent: #73d69a; --log-background: #183327; }
 .queue-item.log-attack { --log-accent: #ffc488; --log-background: #382719; }
@@ -797,7 +822,7 @@ output {
 
 /* Move controls below the board on narrower screens, then stack the sidebar. */
 @media (max-width: 1180px) {
-  .main-grid { grid-template-columns: 220px minmax(0, 1fr); }
+  .main-grid { grid-template-columns: minmax(280px, 320px) minmax(0, calc(76vh + 26px)); }
   .info-sidebar { grid-row: 1 / span 2; }
   .control-panel { grid-column: 2; position: static; }
 }
@@ -808,8 +833,8 @@ output {
   .welcome-home .intro-hero { padding: 28px 20px; }
   .docs-page > header { flex-wrap: wrap; }
   .main-grid { grid-template-columns: minmax(0, 1fr); }
-  .info-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-row: auto; position: static; align-items: start; }
-  .board { width: min(100%, 700px); }
+  .info-sidebar { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); grid-row: auto; position: static; align-items: start; }
+  .board-panel { width: min(100%, 726px); justify-self: center; }
   .control-panel { grid-column: auto; }
   #planningControls button { min-height: 44px; }
   .setup-widgets { grid-template-columns: 1fr; }

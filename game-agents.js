@@ -204,5 +204,20 @@ const GameAgents = (() => {
     return false;
   }
 
-  return Object.freeze({setup, cancel, isBot, humanTurn, begin, humanFinished, ready});
+  // Execution adjustment uses only public knowledge, never hidden tile contents.
+  function scanMoveDirection(p, original) {
+    const choices = Object.entries(DIRS).filter(([, d]) => canEnter(p.x + d.dx, p.y + d.dy, p.id));
+    const score = ([name, d]) => {
+      const tile = tileAt(p.x + d.dx, p.y + d.dy);
+      const clues = surroundingTiles(tile).filter(t => Number.isInteger(t.clueCount) && t.clueRound === state.round);
+      const estimate = clues.length
+        ? 1 + 30 * clues.reduce((sum, t) => sum + t.clueCount / surroundingTiles(t).length, 0) / clues.length
+        : 10;
+      const risk = tile.revealed ? (tile.type === "mine" ? 100 : 0) : estimate;
+      return risk + (name === original ? 0 : 1);
+    };
+    choices.sort((a, b) => score(a) - score(b));
+    return choices[0]?.[0] || original;
+  }
+  return Object.freeze({setup, cancel, isBot, humanTurn, begin, humanFinished, ready, scanMoveDirection});
 })();

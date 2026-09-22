@@ -9,8 +9,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {game, html} = require("./helpers");
 
-test("Default setup is four seats, one human, Moderate bots, random order, five HP, sixteen walls, and twenty percent bombs", () => {
-  const defaults = Object.fromEntries(["startingHp", "terrainCount", "bombPercent"].map(id => {
+test("Default setup is four seats, one human, Moderate bots, random order, five HP, mixed terrain, and twenty percent bombs", () => {
+  const defaults = Object.fromEntries(["startingHp", "terrainCount", "ridgeCount", "bombPercent"].map(id => {
     const input = html.match(new RegExp(`<input\\b[^>]*\\bid="${id}"[^>]*\\bvalue="([^"]+)"`));
     assert.ok(input, `Missing default value for ${id}`);
     return [id, input[1]];
@@ -23,7 +23,7 @@ test("Default setup is four seats, one human, Moderate bots, random order, five 
   }));
   const {run, elements} = game({...defaults, ...selections});
   assert.equal(elements.get("startingHpValue").textContent, "5 HP");
-  assert.equal(elements.get("terrainCountValue").textContent, "16");
+  assert.equal(elements.get("terrainCountValue").textContent, "20");
   assert.equal(elements.get("bombPercentValue").textContent, "20%");
   run(`
     startGame();
@@ -31,17 +31,18 @@ test("Default setup is four seats, one human, Moderate bots, random order, five 
     assert.equal(state.config.humanCount, 1);
     assert.equal(state.config.botDifficulty, "moderate");
     assert.equal(state.config.turnOrderMode, "random");
-    assert.equal(state.config.terrainType, "wall");
+    assert.equal(state.config.terrainType, "random");
     assert.equal(state.config.visibilityMode, "default");
     assert.equal(state.config.mutatorId, "last-survivor");
     assert.equal(state.config.startingHp, 5);
-    assert.equal(state.config.wallCount, 16);
+    assert.equal(state.config.wallCount, 20);
+    assert.equal(state.config.ridgeLines, 1);
     assert.equal(state.config.bombPercent, 20);
     assert.equal(state.players.filter(p => p.controller === "moderate").length, 3);
     state.players.forEach(p => assert.equal(p.hp, 5));
-    assert.equal(state.board.filter(tile => tile.type === "wall").length, 16);
+    assert.equal(state.board.filter(tile => tile.type === "wall").length, 20);
     assert.equal(state.board.filter(tile => tile.type === "mine").length, 20);
-    assert.equal(state.board.filter(tile => tile.type === "ridge").length, 0);
+    assert.equal(state.board.filter(tile => tile.type === "ridge").length, 5);
   `);
   assert.equal(elements.get("bombStats").textContent, "20 bombs / 0 found");
   run("resetToSetup();");
@@ -357,7 +358,7 @@ test("Bomb stats track scans, planting, disarming, and explosions as queued acti
   expectStats("2 bombs / 0 found");
   run("resolveNext(); resolveNext();");
   expectStats("2 bombs / 0 found");
-  run("resolveNext();");
+  run("resolveNext(); confirmScanMove();");
   expectStats("1 bomb / 0 found");
   run("finishRound();");
   expectStats("1 bomb / 0 found");
@@ -382,7 +383,7 @@ for (const scan of [
   {action: "SCAN", cost: 1, grids: 1, mine: {x: 5, y: 5}},
   {action: "AREA_SCAN", cost: 3, grids: 9, mine: {x: 6, y: 4}},
 ]) {
-  test(`${scan.action} previews and records clue counts without revealing bombs or destroying walls`, () => {
+  test(`${scan.action} previews privately and executes its scan without destroying walls`, () => {
     const {run, elements, button} = game();
     run(`
       state.players[0].x = 4; state.players[0].y = 4;
@@ -403,15 +404,15 @@ for (const scan of [
       assert.equal(currentPlanner().pointsRemaining, ${4 - scan.cost});
       assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, false);
       beginExecution(); resolveNext();
-      assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, false);
+      assert.equal(tileAt(${scan.mine.x}, ${scan.mine.y}).revealed, ${scan.action === "AREA_SCAN"});
       const clueTiles = state.board.filter(t => Number.isInteger(t.clueCount));
-      assert.equal(clueTiles.length, ${scan.grids});
+      assert.equal(clueTiles.length, ${scan.action === "SCAN" ? 1 : 0});
       clueTiles.forEach(t => assert.equal(t.clueCount, surroundingTiles(t).filter(n => n.type === "mine").length));
       assert.equal(tileAt(5, 4).type, "wall");
       assert.equal(tileAt(4, 5).type, "wall");
       assert.equal(canEnter(5, 4, 1), false);
     `);
-    assert.equal(elements.get("bombStats").textContent, "2 bombs / 0 found");
+    assert.equal(elements.get("bombStats").textContent, `2 bombs / ${scan.action === "AREA_SCAN" ? 1 : 0} found`);
   });
 }
 
@@ -592,20 +593,20 @@ test("Setup normalization preserves zero terrain and clamps values to board capa
   }
   run(`
     startGame();
-    assert.equal(state.players.length, 6);
+    assert.equal(state.players.length, 8);
     assert.equal(state.config.startingHp, 5);
     assert.equal(state.config.wallCount, 20);
     assert.equal(state.config.ridgeLines, 2);
-    assert.equal(state.config.bombPercent, 64);
+    assert.equal(state.config.bombPercent, 62);
     assert.equal(state.board.filter(tile => tile.type === "wall").length, 20);
     assert.equal(state.board.filter(tile => tile.type === "ridge").length, 10);
-    assert.equal(state.board.filter(tile => tile.type === "mine").length, 64);
+    assert.equal(state.board.filter(tile => tile.type === "mine").length, 62);
     state.players.forEach(p => {
       assert.equal(tileAt(p.x, p.y).type, "safe");
       assert.equal(tileAt(p.x, p.y).revealed, true);
     });
   `);
-  assert.equal(elements.get("mapSummary").textContent, "64 hidden bombs · 20 walls · 2 long ridges");
+  assert.equal(elements.get("mapSummary").textContent, "62 hidden bombs · 20 walls · 2 long ridges");
 });
 
 test("Movement previews do not reveal bombs or depend on other players' current occupancy", () => {

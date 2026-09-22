@@ -92,16 +92,22 @@ Clear mode retains knowledge. Planting preserves both visibility and its timer: 
 planted on a known grid stays visible until that knowledge expires. Expired grids are
 redacted just like unexplored grids; remaining bomb totals stay public.
 
-Scanning records public clues without revealing tile contents. `clueCount` is the
+Scan Here records public clues without revealing tile contents. `clueCount` is the
 number of bombs in the tile's eight neighbors, excluding the tile itself, as observed
 in `clueRound`. A tile may have a clue while its `type` remains `unknown`; a numbered
 tile is not necessarily safe. Walls do not block counting, and missing neighbors at
 board edges contribute nothing. Planting, disarming, and explosions do not update
 stored clues. Only rescanning refreshes the count and scan round.
 
+Every starting tile receives a public clue before the first roll, without spending points.
+During execution, paid Scan Here also grants one adjustment to the next already-programmed
+Move that round. Adjustments do not stack. Humans choose when the Move reaches its turn;
+bots (including custom adapters) use the engine's automatic public-information movement
+choice. This does not call the planning provider again or alter any other queued actions.
+
 Clues expire independently of tile knowledge using the same visibility duration:
 R+2 for Default, R+1 for Hard, and no expiry for Clear. Entering a tile or checking it
-with Disarm refreshes tile knowledge but not its clue. 3-Grid Scan instead reveals bombs directly, clears numbers in its area, and permanently highlights found initial bombs until removed. Planted bombs follow normal visibility expiry. The `bombs.found` count includes only
+with Disarm refreshes tile knowledge but not its clue. 3-Grid Scan instead reveals bombs directly and clears numbers in its area; 3×3 Scan also reveals safe grids throughout its nine-grid area. Both permanently highlight found initial bombs until removed. Safe grids and planted bombs follow normal visibility expiry. The `bombs.found` count includes only
 currently revealed bombs, not bombs inferred from numbered clues.
 
 `position` follows your queued moves. Movement choices in `legalActions` also treat
@@ -124,9 +130,9 @@ Direction may be omitted or `null` for nondirectional actions.
 | `DISARM` | 1 | Any of eight directions; safely check and remove a bomb from one adjacent grid. |
 | `BOMB` | 1 | Cardinal only; plants a mine on non-terrain grids; cannot break walls. |
 | `BREAK_WALL` | 2 | Cardinal only; destroys a wall; cannot plant mines or destroy ridges. |
-| `SCAN` | 1 | None; record a clue on the current grid counting bombs in its eight neighbors. |
+| `SCAN` | 1 | None; record a neighboring-bomb clue and allow one adjustment to the next programmed Move this round. |
 | `TRI_SCAN` | 2 | Any of eight directions; reveal bombs directly in three grids, without numbers. Full region must fit. |
-| `AREA_SCAN` | 3 | Any of eight directions; record a clue on each grid in a 3×3 region. Full region must fit. |
+| `AREA_SCAN` | 3 | Any of eight directions; reveal bombs and safe grids in a 3×3 region, without numbers. Full region must fit. |
 | `DISCARD` | 1 | None; discards **one** point per agent call. |
 
 Direction names: `UP`, `DOWN`, `LEFT`, `RIGHT`, `UP_LEFT`, `UP_RIGHT`, `DOWN_LEFT`,
@@ -137,6 +143,10 @@ sidestep from the player's actual position. A successful sidestep avoids the pus
 and triggers the destination tile normally, including lethal mines during Sudden
 Death. A blocked sidestep consumes the dodge and the attack continues. Dodges do not
 stack: a later Dodge replaces the direction, and unused dodges expire at round end.
+
+A queued Dodge also protects against attacks by earlier players in the same execution
+step. Such a response consumes that Dodge immediately (including blocked attempts);
+its normal queue slot does not arm it again. Later-step Dodges cannot respond early.
 
 Disarm checks one adjacent grid from the player's actual position. It removes any
 bomb safely and reveals the resulting safe grid, or verifies a grid without a bomb.

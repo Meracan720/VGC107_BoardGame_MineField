@@ -76,13 +76,16 @@ const DicePhase = (() => {
     summary.style.gridTemplateColumns = `repeat(${players.length}, minmax(0, 1fr))`;
     players.forEach(player => {
       const column = document.createElement("div");
-      column.className = "round-die" + (p?.id === player.id ? " rolling-player" : "");
-      column.title = `${player.name}: ${player.roll === null ? player.alive ? "Waiting to roll" : "Eliminated" : `${player.roll} points`}`;
+      const deadDuringExecution = state.phase === "execution" && !player.alive;
+      column.className = "round-die"
+        + (p?.id === player.id ? " rolling-player" : "")
+        + (deadDuringExecution ? " dead" : "");
+      column.title = `${player.name}: ${deadDuringExecution ? "Dead" : player.roll === null ? player.alive ? "Waiting to roll" : "Eliminated" : `${player.roll} points`}`;
       const name = document.createElement("span");
       name.textContent = `P${player.id}`;
       const cube = document.createElement("span");
       cube.className = "allocation-cell round-die-cube " + (player.roll === null ? "locked" : "usable");
-      cube.textContent = player.roll === null ? "—" : String(player.roll);
+      cube.textContent = deadDuringExecution ? "DEAD" : player.roll === null ? "—" : String(player.roll);
       column.appendChild(name);
       column.appendChild(cube);
       summary.appendChild(column);

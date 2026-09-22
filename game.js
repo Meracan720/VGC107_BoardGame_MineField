@@ -53,15 +53,15 @@ const SCAN_RULES = {
 };
 
 const ACTION_HINTS = {
-  ATTACK: "Reach 2 grids straight or 1 diagonally; push 1 grid. A wall, ridge, or edge blocking the push deals 1 HP. Players block without damage.",
+  ATTACK: "Reach 2 grids straight or 1 diagonally; push 1 grid and deal 1 HP. A wall, ridge, or edge blocking the push also deals 1 HP.",
   MOVE: "Choose a path. A step blocked by another player is skipped and spent; later programmed steps still execute from your actual position.",
-  DODGE: "Choose an adjacent escape grid. The next attack triggers a sidestep there. Blocked escape fails; bombs still trigger. One dodge, this round only.",
+  DODGE: "Choose an adjacent escape grid. Protects against an earlier attack in the same execution step, or the next attack after activation. Used once; blocked escape fails and bombs still trigger.",
   DISARM: "Choose one adjacent grid in any direction. Remove its bomb safely, or verify it is safe. Costs 1 point; no flags needed.",
   BOMB: "Plant a bomb on an adjacent non-terrain grid (↑ ↓ ← →) for 1 point. Preserves visibility; cannot break walls.",
   BREAK_WALL: "Destroy an adjacent wall (↑ ↓ ← →) for 2 points. Opens paths for later movement; ridges cannot be broken.",
-  SCAN: "Record a number on your current grid: bombs in its eight neighbors, excluding the center. The clue is a snapshot, not a live counter. Costs 1 point.",
+  SCAN: "Costs 1 point. Record a public neighboring-bomb count, then redirect your next programmed Move when it executes. One adjustment, this round only; scans do not stack.",
   TRI_SCAN: "Scan three grids for 2 points. Reveal bombs directly, without numbers. Other grids keep their visibility. Found initial bombs stay visible until removed.",
-  AREA_SCAN: "Aim a 3×3 patch of numbered clues for 3 points. Each counts its eight neighbors. Clues are snapshots; walls do not block counting.",
+  AREA_SCAN: "Scan a 3×3 patch for 3 points. Reveal bombs and safe grids directly, without numbers. Found initial bombs stay visible until removed; other results follow the visibility setting.",
 };
 
 const ALLOCATION_LABELS = {
@@ -87,6 +87,7 @@ el("confirmProgramBtn").addEventListener("click", confirmProgram);
 el("readyNextPlayerBtn").addEventListener("click", readyNextPlayer);
 el("resolveNextBtn").addEventListener("click", resolveNext);
 el("resolveAllBtn").addEventListener("click", resolveAll);
+el("keepScanMoveBtn").addEventListener("click", () => confirmScanMove());
 el("rollDiceBtn").addEventListener("click", rollDice);
 el("beginPlanningBtn").addEventListener("click", DicePhase.startPlanning);
 el("undoActionBtn").addEventListener("click", undoLastAction);
@@ -120,10 +121,12 @@ function readIntegerInput(id, fallback, minimum, maximum) {
 }
 
 function updateSetupConfig() {
+  // Apply mode constraints before calculating board capacity and turn order.
+  const mutator = GameMutators.setup();
   const startingHp = readIntegerInput("startingHp", DEFAULT_START_HP, 1, MAX_START_HP);
   el("startingHpValue").textContent = `${startingHp} HP`;
   const totalTiles = SIZE * SIZE;
-  const playerCount = readIntegerInput("playerCount", 4, 3, 6);
+  const playerCount = readIntegerInput("playerCount", 4, 3, 8);
   const terrainInput = el("terrainType");
   const terrainType = ["wall", "ridge", "random"].includes(terrainInput.value) ? terrainInput.value : "wall";
   terrainInput.value = terrainType;
@@ -154,7 +157,7 @@ function updateSetupConfig() {
 
   const agents = GameAgents.setup(playerCount);
   return {playerCount, startingHp, terrainType, wallCount, ridgeLines, bombPercent, bombCount,
-    ...agents, ...TurnOrder.setup(playerCount, agents.humanCount), ...GridVisibility.setup(), ...GameMutators.setup()};
+    ...agents, ...TurnOrder.setup(playerCount, agents.humanCount), ...GridVisibility.setup(), ...mutator};
 }
 
 function resetToSetup() {
@@ -178,6 +181,8 @@ function startGame() {
     {x: 0, y: SIZE - 1},
     {x: Math.floor((SIZE - 1) / 2), y: 0},
     {x: Math.ceil((SIZE - 1) / 2), y: SIZE - 1},
+    {x: 0, y: Math.ceil((SIZE - 1) / 2)},
+    {x: SIZE - 1, y: Math.floor((SIZE - 1) / 2)},
   ];
   state = {
     round: 1,
@@ -186,6 +191,7 @@ function startGame() {
     planningIndex: 0,
     awaitingHandoff: false,
     executionIndex: 0,
+    pendingScanMove: null,
     allocationCounter: 0,
     agentFailures: new Set(),
     config,
@@ -200,6 +206,7 @@ function startGame() {
       hp: startingHp,
       alive: true,
       dodge: false,
+      scanMoveReady: false,
       roll: null,
       pointsRemaining: 0,
       program: [],
@@ -218,6 +225,7 @@ function startGame() {
   placeLongRidges(ridgeLines);
   placeWalls(wallCount);
   placeMines(bombCount);
+  state.players.forEach(p => GameRules.scan(p, [tileAt(p.x, p.y)]));
 
   el("setupPanel").classList.add("hidden");
   el("gamePanel").classList.remove("hidden");
@@ -487,6 +495,12 @@ function threeGridScanRegion(origin, dirName) {
 }
 
 function selectBoardTile(tile) {
+  if (state?.phase === "execution" && state.pendingScanMove) {
+    const p = state.players.find(p => p.id === state.pendingScanMove.playerId);
+    const dir = directionFromDelta(tile.x - p.x, tile.y - p.y);
+    if (dir && canEnter(tile.x, tile.y, p.id)) confirmScanMove(dir);
+    return;
+  }
   if (!GameAgents.humanTurn()) return;
   const p = currentPlanner();
   if (p && p.pointsRemaining <= 0) return;
@@ -789,10 +803,12 @@ function readyNextPlayer() {
 // Execution is step-major: every living player's first item, then every second
 // item, and so on. Queue entries stay hidden until that exact item resolves.
 function beginExecution() {
+  state.pendingScanMove = null;
+  state.players.forEach(p => p.scanMoveReady = false);
   el("botControls").classList.add("hidden");
   state.phase = "execution";
   state.executionIndex = 0;
-  state.players.forEach(p => p.dodge = false);
+  state.players.forEach(p => { p.dodge = false; p.dodgeItem = null; });
 
   const livingAtStart = livingPlayers();
   state.queue = [];
@@ -826,6 +842,7 @@ function beginExecution() {
 
 function resolveNext() {
   if (!state || state.phase !== "execution") return;
+  if (pauseForScanMove()) return;
   if (state.executionIndex >= state.queue.length) {
     finishRound();
     return;
@@ -837,9 +854,10 @@ function resolveNext() {
 
 function resolveAll() {
   if (!state || state.phase !== "execution") return;
-  // Each iteration advances the index in a fixed queue, so no arbitrary safety
-  // limit is needed. Check for a winner after each action, not just at the end.
+  // Each iteration advances the queue or returns for a human movement choice.
+  // Check for a winner after each action, not just at the end.
   while (state.executionIndex < state.queue.length) {
+    if (pauseForScanMove()) return;
     resolveQueuedAction();
     if (checkWinner()) return;
   }
@@ -852,6 +870,7 @@ function resolveQueuedAction() {
   const p = state.players.find(player => player.id === item.playerId);
   const beforeVitals = capturePlayerVitals();
   if (p && p.alive) {
+    if (item.action === "MOVE") p.scanMoveReady = false;
     executeAction(p, item);
   } else {
     state.log = `${p ? p.name : "A player"} is eliminated, so the action is skipped.`;
@@ -859,6 +878,36 @@ function resolveQueuedAction() {
   recordActionOutcome(item, beforeVitals);
   item.done = true;
   state.executionIndex++;
+}
+
+// Scan grants a single adjustment to an already-paid Move, at its normal turn.
+function pauseForScanMove() {
+  if (state.pendingScanMove) return true;
+  const item = state.queue[state.executionIndex];
+  const p = item && state.players.find(p => p.id === item.playerId);
+  if (!p?.alive || !p.scanMoveReady || item.action !== "MOVE") return false;
+  if (GameAgents.isBot(p)) {
+    item.dir = GameAgents.scanMoveDirection(p, item.dir);
+    return false;
+  }
+  state.pendingScanMove = {playerId: p.id, index: state.executionIndex};
+  state.log = `${p.name}: use your scan to choose an adjacent destination, or keep your programmed direction.`;
+  render();
+  return true;
+}
+
+function confirmScanMove(dir) {
+  if (!state || state.phase !== "execution" || !state.pendingScanMove) return;
+  const pending = state.pendingScanMove;
+  if (pending.index !== state.executionIndex) return;
+  const p = state.players.find(p => p.id === pending.playerId);
+  if (!p?.alive) return;
+  if (dir && (!DIRS[dir] || !canEnter(p.x + DIRS[dir].dx, p.y + DIRS[dir].dy, p.id))) return;
+  const item = state.queue[pending.index];
+  if (dir) item.dir = dir;
+  state.pendingScanMove = null;
+  p.scanMoveReady = false;
+  resolveNext();
 }
 
 function capturePlayerVitals() {
@@ -910,7 +959,12 @@ function executeAction(p, item) {
   }
 
   if (action === "DODGE") {
+    if (item.dodgeConsumed) {
+      state.log = `${p.name}'s programmed dodge was already spent responding to ${item.dodgeAttacker}'s attack this step. Other programmed actions continue normally.`;
+      return;
+    }
     p.dodge = item.dir;
+    p.dodgeItem = item;
     state.log = `${p.name} prepares a ${dir.symbol} sidestep for the next attack this round. It replaces any earlier dodge.`;
     return;
   }
@@ -928,7 +982,12 @@ function executeAction(p, item) {
       return;
     }
     if (action === "TRI_SCAN") GameRules.revealBombs(p, region);
-    else revealScanRegion(p, region, scan.label(item.dir));
+    else if (action === "AREA_SCAN") GameRules.revealBombs(p, region, {revealSafe: true});
+    else {
+      revealScanRegion(p, region, scan.label(item.dir));
+      p.scanMoveReady = true;
+      state.log += " May redirect the next programmed Move this round.";
+    }
     return;
   }
 
@@ -960,7 +1019,7 @@ function executeAction(p, item) {
   }
 
   if (action === "ATTACK") {
-    GameRules.attack(p, item.dir);
+    GameRules.attack(p, item.dir, item);
     return;
   }
 
@@ -980,16 +1039,64 @@ function canEnter(x, y, movingPlayerId) {
   return !state.players.some(p => p.alive && p.id !== movingPlayerId && p.x === x && p.y === y);
 }
 
+function nearbyMovementTiles(p) {
+  return Object.values(DIRS)
+    .map(dir => ({x: p.x + dir.dx, y: p.y + dir.dy}))
+    .filter(tile => canEnter(tile.x, tile.y, p.id));
+}
+
+function hasPlannedAttack(p) {
+  return p.program.some(item => item.action === "ATTACK");
+}
+
 function moveSteps(p, dir, steps, successText) {
   let moved = 0;
   let blockage = "terrain or the board edge";
+  let collisionLog = "";
   const tileEvents = [];
   for (let i = 0; i < steps; i++) {
     const nx = p.x + dir.dx;
     const ny = p.y + dir.dy;
     if (!canEnter(nx, ny, p.id)) {
       const blocker = state.players.find(other => other.alive && other.id !== p.id && other.x === nx && other.y === ny);
-      if (blocker) blockage = blocker.name;
+      if (!blocker) break;
+      if (!hasPlannedAttack(p)) {
+        const nearby = nearbyMovementTiles(p);
+        if (nearby.length) {
+          const destination = nearby[Math.floor(Math.random() * nearby.length)];
+          p.x = destination.x;
+          p.y = destination.y;
+          moved++;
+          collisionLog = `${p.name} is squeezed around ${blocker.name} to a nearby grid.`;
+          const tileEvent = triggerTile(p);
+          if (tileEvent) tileEvents.push(tileEvent);
+        } else {
+          blockage = blocker.name;
+        }
+        break;
+      }
+
+      const pushX = blocker.x + dir.dx;
+      const pushY = blocker.y + dir.dy;
+      const pushable = canEnter(pushX, pushY, blocker.id);
+      const damageLog = GameRules.damage(blocker, 1);
+      if (pushable && blocker.alive) {
+        blocker.x = pushX;
+        blocker.y = pushY;
+        const tileEvent = triggerTile(blocker);
+        if (tileEvent) tileEvents.push(tileEvent);
+        p.x = nx;
+        p.y = ny;
+        moved++;
+        collisionLog = `${p.name} pushes through ${blocker.name}, dealing 1 HP damage${damageLog}, and moves ${dir.symbol}.`;
+      } else if (!blocker.alive) {
+        p.x = nx;
+        p.y = ny;
+        moved++;
+        collisionLog = `${p.name} pushes through ${blocker.name}, dealing 1 HP damage${damageLog}, and moves ${dir.symbol}.`;
+      } else {
+        collisionLog = `${p.name} hits ${blocker.name} while moving, dealing 1 HP damage${damageLog}; the push is blocked.`;
+      }
       break;
     }
     p.x = nx;
@@ -1001,7 +1108,8 @@ function moveSteps(p, dir, steps, successText) {
   }
 
   let movementLog;
-  if (moved === 0) movementLog = `${p.name}'s movement is blocked by ${blockage} and skipped. The point is spent; later programmed actions continue.`;
+  if (collisionLog) movementLog = collisionLog;
+  else if (moved === 0) movementLog = `${p.name}'s movement is blocked by ${blockage} and skipped. The point is spent; later programmed actions continue.`;
   else if (moved < steps) movementLog = `${successText} Movement stops after ${moved} grid${moved === 1 ? "" : "s"}.`;
   else movementLog = successText;
   state.log = [movementLog, ...tileEvents].join(" ");
@@ -1029,6 +1137,8 @@ function triggerTile(p) {
 
 // Round lifecycle. Health and terrain persist; rolls, programs, and dodge reset.
 function finishRound() {
+  state.pendingScanMove = null;
+  state.players.forEach(p => p.scanMoveReady = false);
   if (checkWinner()) return;
 
   state.round++;
@@ -1053,6 +1163,7 @@ function finishRound() {
   state.players.forEach(p => {
     p.program = [];
     p.dodge = false;
+    p.dodgeItem = null;
     p.roll = null;
     p.pointsRemaining = 0;
   });
@@ -1116,6 +1227,16 @@ function bombCounts() {
 
 function render() {
   if (!state) return;
+  const scanMovePending = state.phase === "execution" && Boolean(state.pendingScanMove);
+  el("scanMoveChoice").classList.toggle("hidden", !scanMovePending);
+  el("resolveNextBtn").disabled = scanMovePending;
+  el("resolveAllBtn").disabled = scanMovePending;
+  if (scanMovePending) {
+    const p = state.players.find(p => p.id === state.pendingScanMove.playerId);
+    const item = state.queue[state.executionIndex];
+    el("scanMoveHint").textContent = `${p.name}: click an adjacent highlighted grid to move there now. This uses your already-paid Move.`;
+    el("keepScanMoveBtn").textContent = `Keep programmed move ${DIRS[item.dir].symbol}`;
+  }
   el("roundLabel").textContent = state.round;
   el("phaseLabel").textContent =
     state.phase === "rolling" ? "Dice Rolls" : state.phase === "planning" ? "Planning" :
@@ -1152,6 +1273,10 @@ function renderPlayers() {
       : showHearts ? "♥".repeat(p.hp) : `${p.hp} / ${state.config.startingHp} HP`;
     const card = document.createElement("div");
     card.className = "player-card" + (p.alive ? "" : " dead") + (isActive ? " active" : "");
+    if (isActive && state.phase === "execution") card.classList.add("execution-active");
+    if (p.alive && p.hp > 0 && p.hp <= 2) {
+      card.classList.add(p.hp <= 1 ? "hp-critical" : "hp-low");
+    }
     card.innerHTML = `
       <span class="player-identity">
         <span class="active-player-cube p${p.id}${isActive ? "" : " inactive"}" ${isActive ? 'role="img" aria-label="Active player" title="Active player"' : 'aria-hidden="true"'}></span>
@@ -1257,6 +1382,13 @@ function renderBoard() {
       cell.classList.add("move-reachable");
       cell.title += `${cell.title ? "; " : ""}Reachable in ${path.length} point${path.length === 1 ? "" : "s"}`;
     }
+    if (state.pendingScanMove) {
+      const p = state.players.find(p => p.id === state.pendingScanMove.playerId);
+      if (directionFromDelta(t.x - p.x, t.y - p.y) && canEnter(t.x, t.y, p.id)) {
+        cell.classList.add("move-reachable");
+        cell.title += `${cell.title ? "; " : ""}Choose this scan-adjusted Move`;
+      }
+    }
     if (selectedPath.has(key)) cell.classList.add("planned-path");
     if (scanRegion.has(key)) cell.classList.add("scan-region");
     if (disarmRegion.has(key)) cell.classList.add("disarm-region");
@@ -1305,6 +1437,8 @@ function renderBoard() {
 }
 
 function renderQueue() {
+  const latest = state?.phase === "execution" ? state.queue[state.executionIndex - 1] : null;
+  el("latestExecutionLog").textContent = latest?.resultLog || "No actions resolved yet.";
   if (!state || state.phase !== "execution") return;
   const q = el("executionQueue");
   q.innerHTML = "";
@@ -1322,6 +1456,12 @@ function renderQueue() {
       `Step ${item.step + 1} · ${p ? p.name : "Player"} · ${formatAction(item)}` +
       (item.eventText ? ` · ${item.eventText}` : "");
     row.title = item.resultLog || "";
+    if (item.resultLog) {
+      const detail = document.createElement("div");
+      detail.className = "queue-result";
+      detail.textContent = item.resultLog;
+      row.appendChild(detail);
+    }
     q.appendChild(row);
   });
 
@@ -1335,8 +1475,8 @@ function renderQueue() {
   }
 
   const queueFinished = state.executionIndex >= state.queue.length;
-  el("resolveNextBtn").disabled = false;
+  el("resolveNextBtn").disabled = Boolean(state.pendingScanMove);
   el("resolveNextBtn").textContent = queueFinished ? "Finish Round" : "Resolve Next Action";
-  el("resolveAllBtn").disabled = queueFinished;
+  el("resolveAllBtn").disabled = queueFinished || Boolean(state.pendingScanMove);
   q.scrollTop = q.scrollHeight;
 }

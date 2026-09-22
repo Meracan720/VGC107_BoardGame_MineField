@@ -17,7 +17,7 @@ Author Notes:
 
 An offline, pass-and-play board game built with plain HTML, CSS, and JavaScript.
 
-- 3–6 seats, with human players and optional local bots
+- 3–8 seats, with human players and optional local bots
 - 10 × 10 board
 - players program actions before execution
 - actions resolve later in player order
@@ -30,7 +30,7 @@ An offline, pass-and-play board game built with plain HTML, CSS, and JavaScript.
 No installation is required.
 
 1. Open `index.html` in Chrome, Edge, or Firefox. If downloaded as a ZIP, extract it first.
-2. Choose **Game Config** on the welcome page, then choose 3–6 players, set starting health (1–10 HP), and configure the terrain and bomb density.
+2. Choose **Game Config** on the welcome page, then choose 3–8 players, set starting health (1–10 HP), and configure the terrain and bomb density.
 3. Select **Start Game**, roll in playing order, then select **Begin Planning**.
    Pass the computer between human players during private planning.
 
@@ -38,7 +38,7 @@ No installation is required.
 
 Set **Human players** to **1 human — play solo**, choose a **Bot difficulty**, and start
 the game. You control Player 1; bots fill the other seats. The total Players setting
-still controls the number of seats (3–6). You can also choose two or more humans for
+still controls the number of seats (3–8). You can also choose two or more humans for
 a mixed game, or **All players (pass-and-play)** for the original mode.
 
 - **New Player:** wanders, takes risks, and sometimes misses tactical opportunities.
@@ -63,13 +63,16 @@ in [AGENTS_API.md](AGENTS_API.md). No external AI service is connected by defaul
 ### Mutators
 
 The **Mutators** list at the top of setup selects the game mode. Each selectable card
-shows a mode title with a short description on the next line. The current mode is
-**Last Survivor** — *The last standing WINS.* It is selected by default. A match also
+shows a mode title with a short description on the next line. **Last Survivor** —
+*The last standing WINS.* — is selected by default and allows 3–8 players.
+**Last Survivor — 8 Players** fixes the seat count at eight while keeping your other
+selected settings. Switching back to Last Survivor unlocks the seat count. A match also
 ends when every bomb has been cleared, with the highest-HP survivor winning and ties
 sharing victory. Additional modes can be added in future updates.
 
 Mode definitions live in `mutators.js`: each entry has an `id`, `title`, `description`,
-and `getResult(game)` function. Setup cards are generated from this list. `getResult`
+and `getResult(game)` function, plus an optional fixed `playerCount`.
+Setup cards are generated from this list. `getResult`
 returns `null` while play continues, or `{title, text, log}` when the game ends.
 The chosen ID is stored in `state.config.mutatorId`; future mechanisms beyond victory
 conditions should be implemented in the appropriate engine lifecycle/action functions.
@@ -78,7 +81,7 @@ conditions should be implemented in the appropriate engine lifecycle/action func
 
 In setup, choose **Designated order** to assign each turn using the player selectors.
 Selecting a player already assigned to another turn swaps the two positions, so every
-player appears exactly once. The controls adapt to the selected total of 3–6 players.
+player appears exactly once. The controls adapt to the selected total of 3–8 players.
 Choose **Random order** to shuffle the sequence once when starting a new match.
 
 The sequence applies to both private planning and each execution step, stays fixed
@@ -131,14 +134,16 @@ Choose **Grid visibility** at setup:
 Moving onto a grid (including being pushed or dodging), triggering a mine, checking a
 grid with Disarm, or breaking a wall reveals that grid and refreshes its visibility timer.
 Starting grids begin known in round 1. Staying on a grid does not refresh its timer.
+Before the first dice roll, every starting tile also receives a free public neighboring-bomb
+count. These opening clues follow normal clue expiry and grant no movement adjustment.
 Walls and ridges remain visible terrain. These rules apply equally to humans and bots.
 
-Scan Here and 3×3 Scan record numbered clues without revealing grid contents. Each clue counts
+Scan Here records numbered clues without revealing grid contents. Each clue counts
 bombs in the eight neighboring grids, excluding its own grid, and records the scan
 round. A numbered grid can itself contain a bomb. Clues follow the selected visibility
 lifetime independently of grid knowledge: Clear retains them, Default expires them
 after two rounds, and Hard after one. Moving onto a grid does not refresh its clue.
-Rescanning replaces the number and its scan round. 3-Grid Scan instead reveals bombs directly and clears numbered clues in its area. Found initial bombs stay highlighted until removed; revealed planted bombs follow the visibility setting. Non-bomb grids keep their knowledge state.
+Rescanning replaces the number and its scan round. 3-Grid Scan instead reveals bombs directly and clears numbered clues in its area; non-bomb grids keep their knowledge state. 3×3 Scan reveals both bombs and safe grids and clears numbered clues throughout its area. For both directional scans, found initial bombs stay highlighted until removed; safe grids and revealed planted bombs follow the visibility setting.
 
 Knowledge is separate from grid contents: planting changes neither the known/unknown
 status nor the last reveal round. A bomb planted on a known grid is visible until that
@@ -176,14 +181,27 @@ Actions:
 - **Disarm (1 point, in the Dodge / Disarm group)** — check one adjacent grid in any of 8 directions and remove its bomb safely. The checked grid becomes known safe. There are no flags.
 - **Plant Bomb (1 point)** — plant on an adjacent non-terrain grid (up, down, left, or right), preserving visibility. Cannot break walls.
 - **Break Wall (2 points)** — destroy an adjacent wall (up, down, left, or right). Cannot plant bombs. After adding a wall break to your program, later moves can select a path through that grid. The actual wall is removed only when the action executes; ridges are immune.
-- **Scan Here (1 point)** — record a clue on your current grid counting bombs in its 8 neighboring grids; no direction is needed.
+- **Scan Here (1 point)** — record a public neighboring-bomb count and gain one adjustment to your next programmed Move this round. No direction is needed for the scan.
 - **3-Grid Scan (2 points)** — reveal bombs directly in a three-grid wedge in any of 8 directions, without numbers.
-- **3×3 Scan (3 points)** — choose any of 8 directions and record a clue on each grid in a full 3×3 region in that direction.
+- **3×3 Scan (3 points)** — choose any of 8 directions and reveal bombs and safe grids in a full 3×3 region, without numbers.
 - **Discard Remaining** — secretly allocate any unused points to no-effect actions.
+
+When that Move reaches its normal execution turn, choose an adjacent highlighted destination
+from your actual position or keep the programmed direction. The Move is already paid for;
+no extra movement or changes to other actions are granted. Resolve Remaining pauses for
+human choices. Bots choose automatically from public information. Multiple scans do not
+stack adjustments, and unused adjustments expire at round end. Larger scans do not grant one.
 
 Move, Attack, Dodge, and Disarm support diagonals. Plant Bomb and Break Wall remain limited to up,
 down, left, and right. All players roll before anyone chooses actions. Rolls are public;
 point allocation and programmed actions remain private while planning.
+
+A programmed Dodge can respond to an earlier player's attack in the **same execution
+step**, using the chosen direction from the defender's actual position. It is consumed
+immediately, even if the destination is blocked, and its later queue slot does not activate
+it again. A Dodge in a later step cannot protect against that earlier attack. If unused
+before its normal slot, Dodge activates normally for the next attack that round.
+The execution log shows the attacker, defender, dodge response, and resulting push or damage.
 
 There is no separate direction control. For Move, Attack, Dodge, Disarm, Plant Bomb, Break Wall, and directional Scan actions,
 select the action and then click the intended grid on the board.
@@ -211,10 +229,10 @@ when no bomb is present. Use clues to choose which grid to disarm instead of pla
 
 The 3-Grid Scan costs 2 points and reveals bombs directly: cardinal directions select a three-wide adjacent edge, while a
 diagonal direction selects the three grids forming that corner. The 3×3 Scan costs 3 points.
-Each grid selected by 3×3 Scan gets its own dated clue counting bombs in that grid's eight neighbors,
-excluding the center. At board edges, only neighboring grids on the board are counted.
-Walls do not block scans or clue counts. Numbered scans do not reveal bomb positions or prove a
-clue's center safe. Every scan previews its footprint; a complete directional scan
+Each grid selected by 3×3 Scan shows its bomb or safe result instead of a numbered clue;
+walls and ridges retain their terrain display. Scan Here still counts neighboring bombs.
+Walls do not block scans or clue counts. A Scan Here clue does not reveal bomb positions or prove its
+own grid safe. Every scan previews its footprint; a complete directional scan
 region must fit on the board. Stored numbers change only when rescanned, so later bomb
 placement, disarming, or explosions can make a clue outdated. Discarded
 points fill the allocation tracker like other spent points and remain in the hidden execution
@@ -373,7 +391,7 @@ After UI changes, also check in a browser:
 5. Pass between players, compare the two execution buttons, and start a new game without reloading.
 6. Select one human, try each bot level, and confirm bot plans stay hidden until execution.
 7. Try two humans plus bots; confirm the human handoff, then watch bots after a human is eliminated.
-8. Try designated and random orders with 3–6 players, including bots before/between humans;
+8. Try designated and random orders with 3–8 players, including bots before/between humans;
    confirm rolls appear in the public cubes before planning and execution follows that order.
 
 To add an action, update `ACTIONS`, its HTML button, allocation category/hint, and `executeAction()`.

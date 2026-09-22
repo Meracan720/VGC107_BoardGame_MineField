@@ -36,6 +36,44 @@ test("All players roll publicly in playing order before planning can start", () 
   assert.equal(elements.get("planningControls").classList.contains("hidden"), false);
 });
 
+for (const count of [7, 8]) {
+  test(`${count} players spawn safely and participate in dice, planning, and execution`, () => {
+    const {run, elements} = game({playerCount: String(count)});
+    run(`
+      startGame();
+      assert.equal(state.players.length, ${count});
+      assert.equal(new Set(state.players.map(p => p.x + "," + p.y)).size, ${count});
+      state.players.forEach(p => {
+        assert.equal(tileAt(p.x, p.y).type, "safe");
+        assert.equal(tileAt(p.x, p.y).revealed, true);
+      });
+      Math.random = () => 0;
+      completeDicePhase();
+      assert.ok(state.players.every(p => p.roll === 1));
+      for (let id = 1; id <= ${count}; id++) {
+        assert.equal(currentPlanner().id, id);
+        chooseAction("DISCARD"); confirmProgram(); readyNextPlayer();
+      }
+      assert.equal(state.phase, "execution");
+      assert.deepEqual(state.queue.map(item => item.playerId), state.turnOrder);
+    `);
+    assert.equal(elements.get("roundDice").children.length, count);
+    assert.equal(elements.get("playerList").children.length, count);
+    assert.equal(elements.get("executionRolls").children.length, count);
+    run('resolveAll(); assert.equal(state.round, 2); assert.equal(state.phase, "rolling");');
+  });
+}
+
+test("Eight seats support seven humans and one bot", () => {
+  const {run} = game({playerCount: "8", humanCount: "7"});
+  run(`
+    assert.equal(state.config.humanCount, 7);
+    assert.equal(state.players.filter(p => !GameAgents.isBot(p)).length, 7);
+    assert.equal(state.players[7].name, "Bot 8");
+    assert.equal(GameAgents.isBot(state.players[7]), true);
+  `);
+});
+
 test("Planning keeps assigned rolls and public cubes while programs stay private", () => {
   const {run, elements} = game();
   run('Math.random = () => 0.4; completeDicePhase(); globalThis.before = state.players.map(p => p.roll);');

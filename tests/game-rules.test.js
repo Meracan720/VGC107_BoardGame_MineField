@@ -64,6 +64,66 @@ test("3-Grid Scan reveals only bombs, removes numbers, and keeps initial discove
   `);
 });
 
+for (const [mode, rounds] of [["clear", 4], ["default", 2], ["hard", 1]]) {
+  test(`3×3 Scan reveals bomb and safe results without numbers, with ${mode} visibility`, () => {
+    const {run, elements} = game({visibilityMode: mode});
+    run(`
+      const p = state.players[0]; p.x = 4; p.y = 4;
+      tileAt(5, 3).type = "mine"; tileAt(5, 3).initialMine = true;
+      tileAt(5, 4).type = "mine";
+      tileAt(6, 3).type = "wall"; tileAt(7, 3).type = "ridge";
+      const region = directionalScanRegion(p, "RIGHT");
+      GameRules.scan(p, region);
+      executeAction(p, {action: "AREA_SCAN", dir: "RIGHT"}); render();
+      assert.equal(region.length, 9);
+      region.forEach(t => {
+        assert.equal(t.revealed, true);
+        assert.equal(t.clueCount, null);
+        assert.equal(t.clueRound, null);
+        assert.equal(t.lastRevealedRound, 1);
+      });
+      assert.equal(tileAt(4, 3).revealed, false);
+      assert.equal(tileAt(4, 3).clueCount, null);
+      assert.match(state.log, /2 bombs found/);
+    `);
+    const cells = elements.get("board").children;
+    assert.ok(cells[35].classList.contains("found-mine"));
+    assert.ok(cells[45].classList.contains("mine"));
+    assert.ok(cells[55].classList.contains("safe"));
+    assert.ok(cells[36].classList.contains("wall"));
+    assert.ok(cells[37].classList.contains("ridge"));
+    assert.ok(cells.every(cell => !cell.children.some(child => child.classList.contains("scan-clue"))));
+    run(`
+      for (let i = 1; i <= ${rounds}; i++) {
+        finishRound();
+        assert.equal(tileAt(5, 3).revealed, true);
+        assert.equal(tileAt(5, 4).revealed, ${mode === "clear"} || i < ${rounds});
+        assert.equal(tileAt(5, 5).revealed, ${mode === "clear"} || i < ${rounds});
+      }
+    `);
+  });
+}
+
+test("Player banners progress from normal to low HP, critical HP, and the existing eliminated state", () => {
+  const {run, elements} = game({startingHp: "3"});
+  run('completeDicePhase(); renderPlayers();');
+  const card = () => elements.get("playerList").children[0];
+  assert.ok(card().classList.contains("active"));
+  assert.equal(card().classList.contains("hp-low"), false);
+  assert.equal(card().classList.contains("hp-critical"), false);
+  run('GameRules.damage(state.players[0], 1); renderPlayers();');
+  assert.ok(card().classList.contains("hp-low"));
+  assert.ok(card().classList.contains("active"));
+  run('GameRules.damage(state.players[0], 1); renderPlayers();');
+  assert.ok(card().classList.contains("hp-critical"));
+  assert.equal(card().classList.contains("hp-low"), false);
+  run('GameRules.damage(state.players[0], 1); renderPlayers();');
+  assert.ok(card().classList.contains("dead"));
+  assert.equal(card().classList.contains("hp-critical"), false);
+  assert.equal(card().classList.contains("hp-low"), false);
+  assert.match(card().innerHTML, /ELIMINATED/);
+});
+
 test("Terrain/edge collision deals 1 HP and can eliminate; another player blocks without damage", () => {
   const {run} = game();
   run(`
@@ -122,7 +182,8 @@ test("Round 20 versus 21: moving, being pushed, and dodging onto bombs respect S
       } else {
         tileAt(6,4).type="mine";executeAction(action==="MOVE"?victim:p,{action,dir:"RIGHT"});
       }
-      assert.equal(victim.hp,round===20?4:0);assert.equal(victim.alive,round===20);
+      const expectedHp = action === "ATTACK" ? (round === 20 ? 3 : 0) : (round === 20 ? 4 : 0);
+      assert.equal(victim.hp, expectedHp);assert.equal(victim.alive, round === 20);
       const tile=tileAt(victim.x,victim.y);assert.equal(tile.type,"safe");assert.equal(tile.exploded,true);
       assert.equal(tile.explosionRound,round);
     }
@@ -162,14 +223,26 @@ test("Last survivor takes precedence over clearance; eliminated players are excl
   assert.match(elements.get("winnerTitle").textContent,/Player 3/);
 });
 
-test("A player-blocked movement is spent and skipped; the later step still executes", () => {
+test("A player-blocked movement squeezes to a random nearby legal grid", () => {
   const {run}=game();
   run(`
     const [p,blocker]=state.players;p.x=4;p.y=4;blocker.x=5;blocker.y=4;
-    p.program=[{action:"MOVE",dir:"RIGHT"},{action:"MOVE",dir:"DOWN"}];
-    beginExecution();resolveNext();assert.equal(p.x,4);assert.equal(p.y,4);assert.equal(state.executionIndex,1);
-    assert.match(state.queue[0].resultLog,/blocked by Player 2 and skipped/);
-    resolveNext();assert.equal(p.x,4);assert.equal(p.y,5);
+    Math.random=()=>0; p.program=[{action:"MOVE",dir:"RIGHT"}];
+    beginExecution();resolveNext();
+    assert.notDeepEqual({x:p.x,y:p.y},{x:4,y:4});
+    assert.notDeepEqual({x:p.x,y:p.y},{x:5,y:4});
+    assert.match(state.queue[0].resultLog,/squeezed around Player 2/);
+  `);
+});
+
+test("A planned attack makes a blocked move damage and push the player ahead", () => {
+  const {run}=game();
+  run(`
+    const [p,blocker]=state.players;p.x=4;p.y=4;blocker.x=5;blocker.y=4;blocker.hp=3;
+    p.program=[{action:"ATTACK",dir:"UP"},{action:"MOVE",dir:"RIGHT"}];
+    beginExecution();resolveNext();resolveNext();
+    assert.equal(p.x,5);assert.equal(p.y,4);assert.equal(blocker.x,6);assert.equal(blocker.y,4);
+    assert.equal(blocker.hp,2);assert.match(state.queue[1].resultLog,/dealing 1 HP damage/);
   `);
 });
 

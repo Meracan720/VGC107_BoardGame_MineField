@@ -17,11 +17,11 @@ function selectTurn(elements, index, id) {
   select.listeners.change();
 }
 
-test("Designated controls adapt to 3–6 players and swap seats without duplicates", () => {
+test("Designated controls adapt to 3–8 players and swap seats without duplicates", () => {
   const {run, elements} = game({humanCount: "1", playerCount: "6"});
   selectTurn(elements, 0, 6);
   run('startGame(); assert.deepEqual(state.turnOrder, [6, 2, 3, 4, 5, 1]); resetToSetup();');
-  for (const count of [3, 4, 5, 6]) {
+  for (const count of [3, 4, 5, 6, 7, 8]) {
     elements.get("playerCount").value = String(count);
     run("updateSetupConfig();");
     const labels = elements.get("manualTurnOrder").children;
@@ -62,7 +62,7 @@ test("Designated order controls planning, queue order, and later rounds without 
 });
 
 test("Random order is sampled once at start and is stable across rounds", () => {
-  for (const count of [3, 4, 5, 6]) {
+  for (const count of [3, 4, 5, 6, 7, 8]) {
     const {run, elements} = game({playerCount: String(count), turnOrderMode: "random"});
     assert.equal(elements.get("manualTurnOrder").classList.contains("hidden"), true);
     run(`

@@ -54,6 +54,8 @@ Publish Version: v0.3.1
               <option value="4" selected>4 Players</option>
               <option value="5">5 Players</option>
               <option value="6">6 Players</option>
+              <option value="7">7 Players</option>
+              <option value="8">8 Players</option>
             </select>
           </label>
           <label>
@@ -65,6 +67,8 @@ Publish Version: v0.3.1
               <option value="3">3 humans</option>
               <option value="4">4 humans</option>
               <option value="5">5 humans</option>
+              <option value="6">6 humans</option>
+              <option value="7">7 humans</option>
             </select>
             <span id="botSetupHint" class="setup-hint">Humans take the first seats; bots fill the remaining seats.</span>
           </label>
@@ -114,18 +118,18 @@ Publish Version: v0.3.1
             <label>
               Terrain Type
               <select id="terrainType">
-                <option value="random">Random Mix</option>
-                <option value="wall" selected>Walls</option>
+                <option value="random" selected>Random Mix</option>
+                <option value="wall" >Walls</option>
                 <option value="ridge">Ridges</option>
               </select>
             </label>
             <label>
               <span>Wall Tiles <output id="terrainCountValue">16</output></span>
-              <input id="terrainCount" type="range" min="0" max="20" value="16" />
+              <input id="terrainCount" type="range" min="10" max="40" value="20" />
             </label>
             <label>
               <span>Long Ridge Lines <output id="ridgeCountValue">1</output></span>
-              <input id="ridgeCount" type="range" min="0" max="2" value="1" />
+              <input id="ridgeCount" type="range" min="0" max="3" value="1" />
             </label>
             <label>
               <span>Bomb Density <output id="bombPercentValue">20%</output></span>
@@ -175,9 +179,11 @@ Publish Version: v0.3.1
               <summary>Rules &amp; explanations</summary>
               <ul>
                 <li>Move: a step blocked by another player is skipped. Its point is spent; later steps continue from your actual position.</li>
-                <li>Attack: reach 2 grids straight or 1 diagonally and push 1 grid. A wall, ridge, or edge blocking the push causes 1 HP damage. Another player blocks without damage.</li>
-                <li>Dodge: choose an adjacent escape direction. The next attack triggers one sidestep. A blocked destination makes it fail; landing on a bomb still triggers it. Dodges expire each round and do not stack.</li>
-                <li>Scan Here: 1 point records the bomb count in the eight grids around you. 3×3 Scan costs 3 points and records nine numbered clues. A number does not prove its own grid safe.</li>
+                <li>Attack: reach 2 grids straight or 1 diagonally, push 1 grid, and deal 1 HP damage. A wall, ridge, edge, or blocked push also causes 1 HP damage.</li>
+                <li>Dodge: choose an adjacent escape direction. It can respond to an earlier player's attack in the same execution step; otherwise it activates on your turn for the next attack. It is consumed once, even if blocked. Landing on a bomb still triggers it. Dodges expire each round and do not stack.</li>
+                <li>Every starting tile gets a free public neighboring-bomb count before the first roll. Opening scans grant no movement adjustment.</li>
+                <li>Scan Here: 1 point records the bomb count in the eight grids around you and lets you redirect your next programmed Move when it executes. No extra movement; one adjustment, this round only. Scans do not stack. A number does not prove its own grid safe.</li>
+                <li>3×3 Scan: 3 points reveals bombs and safe grids in a nine-grid patch, with no numbers. Found initial bombs stay visible until removed; other results follow the visibility setting.</li>
                 <li>3-Grid Scan: 2 points reveals bombs directly in three grids, with no numbers. Other grids keep their visibility. Found initial bombs stay visible until removed; planted bombs follow the visibility setting.</li>
                 <li>Plant Bomb: 1 point on an adjacent non-terrain grid. Break Wall: a separate 2-point action targeting an adjacent wall. Both use straight directions only.</li>
                 <li>Clues are dated snapshots. Planting, disarming, and explosions do not update them. Rescan to refresh; clues expire with the selected visibility mode.</li>
@@ -310,9 +316,13 @@ Publish Version: v0.3.1
             </div>
             <p id="executionProgress" class="execution-progress" role="status" aria-live="polite"></p>
             <button id="resolveNextBtn">Resolve Next Action</button>
+            <div id="scanMoveChoice" class="hidden" role="group" aria-label="Movement adjustment after scanning">
+              <p id="scanMoveHint" role="status" aria-live="polite"></p>
+              <button id="keepScanMoveBtn" type="button" class="secondary">Keep programmed move</button>
+            </div>
             <button id="resolveAllBtn" class="secondary">Resolve Remaining</button>
             <details class="execution-log">
-              <summary>Execution log</summary>
+              <summary>Execution log<span id="latestExecutionLog" class="latest-execution-log" role="status" aria-live="polite"></span></summary>
               <div class="allocation-legend" aria-label="Execution log action colors">
                 <span class="legend-scan">Scan</span>
                 <span class="legend-attack">Attack</span>

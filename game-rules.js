@@ -16,26 +16,45 @@ const GameRules = (() => {
     return player.alive ? "" : ` ${player.name} is eliminated.`;
   }
 
-  function attack(player, dirName) {
+  function attack(player, dirName, attackItem) {
     const dir = DIRS[dirName];
     const target = attackRegion(player, dirName).map(tile =>
       state.players.find(p => p.alive && p.id !== player.id && p.x === tile.x && p.y === tile.y)
     ).find(Boolean);
     if (!target) {
+      if (attackItem) attackItem.emptyAction = true;
       state.log = `${player.name} attacks ${dir.symbol}, but nobody is there.`;
       return;
     }
-    let prefix = "";
+    const announcement = `${player.name} attacks ${target.name}; waiting for ${target.name}'s dodge response. `;
+    // A later seat may defend with its Dodge from this exact execution step.
+    // Consume that queue entry now so its normal slot cannot arm it a second time.
+    if (!target.dodge && attackItem && state.queue[state.executionIndex] === attackItem) {
+      const queuedDodge = state.queue.slice(state.executionIndex + 1).find(item =>
+        item.playerId === target.id && item.step === attackItem.step &&
+        item.action === "DODGE" && !item.dodgeConsumed && !item.done);
+      if (queuedDodge) {
+        target.dodge = queuedDodge.dir;
+        target.dodgeItem = queuedDodge;
+        queuedDodge.dodgeConsumed = true;
+        queuedDodge.dodgeAttacker = player.name;
+      }
+    }
+    let prefix = announcement;
     if (target.dodge) {
+      if (target.dodgeItem) target.dodgeItem.dodgeTriggered = true;
+      target.dodgeItem = null;
       const escape = DIRS[target.dodge];
       target.dodge = false;
       if (escape && canEnter(target.x + escape.dx, target.y + escape.dy, target.id)) {
         target.x += escape.dx; target.y += escape.dy;
         const event = triggerTile(target);
-        state.log = `${target.name} dodges ${player.name}'s attack by sidestepping ${escape.symbol}.` + (event ? ` ${event}` : "");
+        state.log = announcement + `${target.name} dodges ${player.name}'s attack by sidestepping ${escape.symbol}.` + (event ? ` ${event}` : "");
         return;
       }
-      prefix = `${target.name}'s dodge destination is blocked; the dodge fails. `;
+      prefix += `${target.name}'s dodge destination is blocked; the dodge fails. `;
+    } else {
+      prefix += `${target.name} did not choose an available dodge for this attack. `;
     }
     const x = target.x + dir.dx, y = target.y + dir.dy;
     if (!inBounds(x, y) || isBlockingTerrain(tileAt(x, y))) {
@@ -45,7 +64,8 @@ const GameRules = (() => {
     } else {
       target.x = x; target.y = y;
       const event = triggerTile(target);
-      state.log = prefix + `${player.name} pushes ${target.name} ${dir.symbol}.` + (event ? ` ${event}` : "");
+      state.log = prefix + `${player.name} pushes ${target.name} ${dir.symbol}: 1 HP damage.`
+        + damage(target, 1) + (event ? ` ${event}` : "");
     }
   }
 
@@ -75,16 +95,19 @@ const GameRules = (() => {
     state.log += ` Snapshot from round ${state.round}; bomb positions stay hidden.`;
   }
 
-  function revealBombs(player, region) {
+  function revealBombs(player, region, {revealSafe = false} = {}) {
     let found = 0;
     for (const tile of region) {
       tile.clueCount = tile.clueRound = null;
+      if (revealSafe) GridVisibility.reveal(tile);
       if (tile.type !== "mine") continue;
       GridVisibility.reveal(tile);
       if (tile.initialMine) tile.scannedInitialMine = true;
       found++;
     }
-    state.log = `${player.name} scans three grids: ${found} bombs found. Bombs are revealed directly; no numbered clues are shown.`;
+    state.log = revealSafe
+      ? `${player.name} scans a 3×3 patch: ${found} bombs found. Bombs and safe grids are revealed directly; no numbered clues are shown.`
+      : `${player.name} scans three grids: ${found} bombs found. Bombs are revealed directly; no numbered clues are shown.`;
   }
 
   function clearanceResult(game) {
